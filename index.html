@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Math Lab</title>
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🎮</span>
+                <h1>Game Math Lab</h1>
+            </div>
+            <nav class="nav">
+                <a href="#modules">Modules</a>
+                <a href="#sandbox">Sandbox</a>
+                <a href="#resources">Resources</a>
+            </nav>
+        </header>
+
+        <main class="main">
+            <section class="hero">
+                <h2>Master Game Development Algorithms</h2>
+                <p>Learn math and algorithms through building real games. No boring theory — just hands-on projects.</p>
+                <a href="#modules" class="cta-button">Start Learning</a>
+            </section>
+
+            <section id="modules" class="modules-section">
+                <h2>Course Modules</h2>
+                <div class="modules-grid">
+                    <!-- Module 1 -->
+                    <a href="src/modules/01-vectors/index.html" class="module-card" data-difficulty="easy">
+                        <span class="module-number">01</span>
+                        <h3>Vector Math Fundamentals</h3>
+                        <p class="module-project">Project: Pong Clone</p>
+                        <div class="module-topics">Vectors, Dot Product, Collision</div>
+                        <span class="difficulty easy">🟢 Beginner</span>
+                    </a>
+
+                    <!-- Module 2 -->
+                    <a href="src/modules/02-trigonometry/index.html" class="module-card" data-difficulty="easy">
+                        <span class="module-number">02</span>
+                        <h3>Trigonometry in Action</h3>
+                        <p class="module-project">Project: Asteroids Clone</p>
+                        <div class="module-topics">Sin/Cos, Rotation, Polar Coords</div>
+                        <span class="difficulty easy">🟢 Beginner</span>
+                    </a>
+
+                    <!-- Module 3 -->
+                    <a href="src/modules/03-physics/index.html" class="module-card" data-difficulty="medium">
+                        <span class="module-number">03</span>
+                        <h3>Physics Simulation</h3>
+                        <p class="module-project">Project: Angry Birds Launcher</p>
+                        <div class="module-topics">Kinematics, Gravity, Projectiles</div>
+                        <span class="difficulty medium">🟡 Intermediate</span>
+                    </a>
+
+                    <!-- Module 4 -->
+                    <a href="src/modules/04-collision/index.html" class="module-card" data-difficulty="medium">
+                        <span class="module-number">04</span>
+                        <h3>Collision Detection</h3>
+                        <p class="module-project">Project: Platformer Controller</p>
+                        <div class="module-topics">AABB, Tiles, Resolution</div>
+                        <span class="difficulty medium">🟡 Intermediate</span>
+                    </a>
+
+                    <!-- Module 5 -->
+                    <a href="src/modules/05-state-machines/index.html" class="module-card" data-difficulty="medium">
+                        <span class="module-number">05</span>
+                        <h3>State Machines</h3>
+                        <p class="module-project">Project: Combat System</p>
+                        <div class="module-topics">FSM, Transitions, Hitboxes</div>
+                        <span class="difficulty medium">🟡 Intermediate</span>
+                    </a>
+
+                    <!-- Module 6 -->
+                    <a href="src/modules/06-steering/index.html" class="module-card" data-difficulty="medium">
+                        <span class="module-number">06</span>
+                        <h3>Steering Behaviors</h3>
+                        <p class="module-project">Project: Flocking Simulation</p>
+                        <div class="module-topics">Seek, Flee, Boids</div>
+                        <span class="difficulty medium">🟡 Intermediate</span>
+                    </a>
+
+                    <!-- Module 7 -->
+                    <a href="src/modules/07-pathfinding/index.html" class="module-card" data-difficulty="hard">
+                        <span class="module-number">07</span>
+                        <h3>Pathfinding Algorithms</h3>
+                        <p class="module-project">Project: Dungeon Crawler</p>
+                        <div class="module-topics">BFS, Dijkstra, A*</div>
+                        <span class="difficulty hard">🔴 Advanced</span>
+                    </a>
+
+                    <!-- Module 8 -->
+                    <a href="src/modules/08-spatial/index.html" class="module-card" data-difficulty="hard">
+                        <span class="module-number">08</span>
+                        <h3>Spatial Partitioning</h3>
+                        <p class="module-project">Project: Collision Optimizer</p>
+                        <div class="module-topics">Quadtrees, Broad Phase</div>
+                        <span class="difficulty hard">🔴 Advanced</span>
+                    </a>
+
+                    <!-- Module 9 -->
+                    <a href="src/modules/09-interpolation/index.html" class="module-card" data-difficulty="medium">
+                        <span class="module-number">09</span>
+                        <h3>Interpolation & Animation</h3>
+                        <p class="module-project">Project: Tween Engine</p>
+                        <div class="module-topics">Lerp, Easing, Bezier</div>
+                        <span class="difficulty medium">🟡 Intermediate</span>
+                    </a>
+
+                    <!-- Module 10 -->
+                    <a href="src/modules/10-particles/index.html" class="module-card" data-difficulty="medium">
+                        <span class="module-number">10</span>
+                        <h3>Particle Systems</h3>
+                        <p class="module-project">Project: VFX Toolkit</p>
+                        <div class="module-topics">Emitters, Pooling, Effects</div>
+                        <span class="difficulty medium">🟡 Intermediate</span>
+                    </a>
+
+                    <!-- Module 11 -->
+                    <a href="src/modules/11-procedural/index.html" class="module-card" data-difficulty="hard">
+                        <span class="module-number">11</span>
+                        <h3>Procedural Generation</h3>
+                        <p class="module-project">Project: Dungeon Generator</p>
+                        <div class="module-topics">Noise, BSP, Cellular Automata</div>
+                        <span class="difficulty hard">🔴 Advanced</span>
+                    </a>
+
+                    <!-- Module 12 -->
+                    <a href="src/modules/12-raycasting/index.html" class="module-card" data-difficulty="hard">
+                        <span class="module-number">12</span>
+                        <h3>Raycasting & Pseudo-3D</h3>
+                        <p class="module-project">Project: Wolfenstein Renderer</p>
+                        <div class="module-topics">DDA, Textures, Sprites</div>
+                        <span class="difficulty hard">🔴 Advanced</span>
+                    </a>
+
+                    <!-- Bonus Module -->
+                    <a href="src/modules/13-3d-intro/index.html" class="module-card bonus" data-difficulty="hard">
+                        <span class="module-number">⭐</span>
+                        <h3>Intro to 3D Math</h3>
+                        <p class="module-project">Project: 3D Solar System</p>
+                        <div class="module-topics">Matrices, Cameras, Quaternions</div>
+                        <span class="difficulty hard">🔴 Bonus</span>
+                    </a>
+                </div>
+            </section>
+
+            <section id="progress" class="progress-section">
+                <h2>Your Progress</h2>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="progress-text">0 / 13 modules completed</p>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>Built by <a href="https://github.com/tsotne01">Tsotne</a> • Learning game dev algorithms one project at a time</p>
+        </footer>
+    </div>
+
+    <script src="src/utils/progress.js"></script>
+    <script src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 1: Vector Math | Game Math Lab</title>
+    <link rel="stylesheet" href="../../styles/main.css">
+    <link rel="stylesheet" href="../../styles/module.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="logo">
+                <a href="../../../index.html">
+                    <span class="logo-icon">🎮</span>
+                    <h1>Game Math Lab</h1>
+                </a>
+            </div>
+            <nav class="nav">
+                <a href="../../../index.html">← Back to Modules</a>
+            </nav>
+        </header>
+
+        <main class="main module-page">
+            <div class="module-header">
+                <span class="module-badge">Module 01</span>
+                <h1>Vector Math Fundamentals</h1>
+                <p class="project-name">🎯 Project: Pong Clone</p>
+            </div>
+
+            <!-- Lesson 1: What is a Vector? -->
+            <section class="lesson" id="lesson-1">
+                <div class="lesson-content">
+                    <h2>1. What is a Vector?</h2>
+                    <p>A <strong>vector</strong> is simply a way to represent both <em>direction</em> and <em>magnitude</em> (length). In game development, we use vectors constantly for:</p>
+                    <ul>
+                        <li>📍 <strong>Position</strong> - Where is the player? <code>(x: 100, y: 200)</code></li>
+                        <li>🚀 <strong>Velocity</strong> - How fast and in what direction? <code>(vx: 5, vy: -3)</code></li>
+                        <li>💨 <strong>Acceleration</strong> - How is velocity changing?</li>
+                        <li>🎯 <strong>Direction</strong> - Which way is the enemy facing?</li>
+                    </ul>
+                    
+                    <p>In 2D games, a vector is just two numbers: <code>x</code> and <code>y</code>.</p>
+                    
+                    <pre><code>// A simple 2D vector
+const position = { x: 100, y: 200 };
+const velocity = { x: 5, y: -3 };
+
+// Moving an object
+position.x += velocity.x;
+position.y += velocity.y;</code></pre>
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="vectorDemo" width="600" height="300"></canvas>
+                    <p class="canvas-caption">🖱️ Move your mouse to see the vector from center to cursor</p>
+                </div>
+            </section>
+
+            <!-- Lesson 2: Vector Operations -->
+            <section class="lesson" id="lesson-2">
+                <div class="lesson-content">
+                    <h2>2. Essential Vector Operations</h2>
+                    
+                    <h3>Addition & Subtraction</h3>
+                    <p>Adding vectors is component-wise: add the x's together, add the y's together.</p>
+                    <pre><code>// Vector addition
+function add(v1, v2) {
+    return { x: v1.x + v2.x, y: v1.y + v2.y };
+}
+
+// Apply velocity to position
+position = add(position, velocity);</code></pre>
+
+                    <h3>Magnitude (Length)</h3>
+                    <p>How long is the vector? Use Pythagorean theorem.</p>
+                    <pre><code>function magnitude(v) {
+    return Math.sqrt(v.x * v.x + v.y * v.y);
+}
+
+// Example: speed = magnitude of velocity
+const speed = magnitude(velocity);</code></pre>
+
+                    <h3>Normalization</h3>
+                    <p>A <strong>normalized</strong> vector has length 1. It represents pure direction.</p>
+                    <pre><code>function normalize(v) {
+    const mag = magnitude(v);
+    if (mag === 0) return { x: 0, y: 0 };
+    return { x: v.x / mag, y: v.y / mag };
+}
+
+// Get direction, then scale to desired speed
+const direction = normalize(velocity);
+const newVelocity = { 
+    x: direction.x * desiredSpeed, 
+    y: direction.y * desiredSpeed 
+};</code></pre>
+                </div>
+            </section>
+
+            <!-- Lesson 3: Dot Product -->
+            <section class="lesson" id="lesson-3">
+                <div class="lesson-content">
+                    <h2>3. The Dot Product</h2>
+                    <p>The <strong>dot product</strong> tells you how much two vectors point in the same direction.</p>
+                    
+                    <pre><code>function dot(v1, v2) {
+    return v1.x * v2.x + v1.y * v2.y;
+}</code></pre>
+
+                    <p>What does the result mean?</p>
+                    <ul>
+                        <li><strong>Positive:</strong> Vectors point roughly the same way</li>
+                        <li><strong>Zero:</strong> Vectors are perpendicular (90°)</li>
+                        <li><strong>Negative:</strong> Vectors point roughly opposite ways</li>
+                    </ul>
+
+                    <p>In Pong, we use dot product to reflect the ball off paddles correctly!</p>
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="dotProductDemo" width="600" height="300"></canvas>
+                    <p class="canvas-caption">🖱️ Move mouse to change the red vector. Watch the dot product value.</p>
+                </div>
+            </section>
+
+            <!-- Lesson 4: Collision Detection -->
+            <section class="lesson" id="lesson-4">
+                <div class="lesson-content">
+                    <h2>4. AABB Collision Detection</h2>
+                    <p><strong>AABB</strong> stands for Axis-Aligned Bounding Box. It's the simplest collision check for rectangles.</p>
+                    
+                    <pre><code>function aabbCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
+}</code></pre>
+
+                    <p>For Pong, we check if the ball's bounding box overlaps with a paddle's bounding box.</p>
+                </div>
+            </section>
+
+            <!-- Project: Pong -->
+            <section class="lesson project-section" id="project">
+                <div class="lesson-content">
+                    <h2>🎮 Project: Pong</h2>
+                    <p>Now let's put it all together! This Pong game uses everything we learned:</p>
+                    <ul>
+                        <li>Vectors for ball position and velocity</li>
+                        <li>Vector reflection for bouncing</li>
+                        <li>AABB collision for paddle hits</li>
+                        <li>Magnitude for speed control</li>
+                    </ul>
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="pongGame" width="700" height="400"></canvas>
+                    <div class="controls">
+                        <button id="startBtn">Start Game</button>
+                        <button id="resetBtn">Reset</button>
+                    </div>
+                    <p class="canvas-caption">⬆️⬇️ Arrow keys or W/S to move. First to 5 wins!</p>
+                </div>
+            </section>
+
+            <!-- Challenges -->
+            <section class="lesson" id="challenges">
+                <div class="lesson-content">
+                    <h2>💪 Challenges</h2>
+                    <p>Completed the project? Try these extensions:</p>
+                    <ol>
+                        <li><strong>Speed Increase:</strong> Make the ball faster after each paddle hit</li>
+                        <li><strong>Angle Control:</strong> Change ball angle based on where it hits the paddle</li>
+                        <li><strong>AI Opponent:</strong> Make the AI paddle track the ball with some delay</li>
+                        <li><strong>Power-ups:</strong> Add items that change paddle size or ball speed</li>
+                    </ol>
+                </div>
+            </section>
+
+            <div class="module-navigation">
+                <button class="complete-btn" onclick="completeModule()">✓ Mark Complete</button>
+                <a href="../02-trigonometry/index.html" class="next-module-btn">Next: Trigonometry →</a>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Module 1 of 13 • <a href="../../../index.html">Game Math Lab</a></p>
+        </footer>
+    </div>
+
+    <script src="../../utils/progress.js"></script>
+    <script src="./vectors.js"></script>
+    <script>
+        function completeModule() {
+            Progress.completeModule('module-01');
+            document.querySelector('.complete-btn').textContent = '✓ Completed!';
+            document.querySelector('.complete-btn').disabled = true;
+        }
+
+        // Check if already completed
+        if (Progress.isCompleted('module-01')) {
+            document.querySelector('.complete-btn').textContent = '✓ Completed!';
+            document.querySelector('.complete-btn').disabled = true;
+        }
+    </script>
+</body>
+</html>
