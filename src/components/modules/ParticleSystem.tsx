@@ -470,43 +470,50 @@ export function SingleParticleDemo() {
         height={320}
         className="w-full rounded-lg border border-border"
         style={{ maxWidth: '600px' }}
+        role="img"
+        aria-label="Single particle physics visualizer showing forces like gravity, wind, and drag affecting a particle"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
         <div>
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-1">
+          <label htmlFor="gravity-slider" className="text-sm text-text-secondary flex items-center gap-2 mb-1">
             <Target className="w-4 h-4 text-[#e17055]" />
             Gravity: {gravity}
           </label>
           <input
+            id="gravity-slider"
             type="range"
             min="-200"
             max="300"
             value={gravity}
             onChange={(e) => setGravity(Number(e.target.value))}
             className="w-full accent-[#e17055]"
+            aria-label={`Gravity: ${gravity}`}
           />
         </div>
         <div>
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-1">
+          <label htmlFor="wind-slider" className="text-sm text-text-secondary flex items-center gap-2 mb-1">
             <Wind className="w-4 h-4 text-[#74b9ff]" />
             Wind: {wind}
           </label>
           <input
+            id="wind-slider"
             type="range"
             min="-150"
             max="150"
             value={wind}
             onChange={(e) => setWind(Number(e.target.value))}
             className="w-full accent-[#74b9ff]"
+            aria-label={`Wind: ${wind}`}
           />
         </div>
         <div>
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-1">
+          <label htmlFor="drag-slider" className="text-sm text-text-secondary flex items-center gap-2 mb-1">
             <Gauge className="w-4 h-4 text-[#6c5ce7]" />
             Drag: {drag.toFixed(2)}
           </label>
           <input
+            id="drag-slider"
             type="range"
             min="0.9"
             max="1"
@@ -514,6 +521,7 @@ export function SingleParticleDemo() {
             value={drag}
             onChange={(e) => setDrag(Number(e.target.value))}
             className="w-full accent-[#6c5ce7]"
+            aria-label={`Drag: ${drag.toFixed(2)}`}
           />
         </div>
       </div>
@@ -700,8 +708,10 @@ export function EmitterShapeDemo() {
             key={type}
             onClick={() => setEmitterType(type)}
             className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${emitterType === type ? 'bg-[#6c5ce7] text-white' : 'bg-bg-secondary text-text-secondary hover:bg-bg-secondary/80'}`}
+            aria-pressed={emitterType === type}
+            aria-label={`Select ${label} emitter type`}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className="w-4 h-4" aria-hidden="true" />
             {label}
           </button>
         ))}
@@ -713,6 +723,8 @@ export function EmitterShapeDemo() {
         height={320}
         className="w-full rounded-lg border border-border"
         style={{ maxWidth: '600px' }}
+        role="img"
+        aria-label={`Emitter shape comparison demo showing ${emitterType} emitter type`}
       />
 
       <div className="mt-4 text-sm text-text-secondary">
@@ -906,6 +918,8 @@ export function PoolingDemo() {
         height={320}
         className="w-full rounded-lg border border-border"
         style={{ maxWidth: '600px' }}
+        role="img"
+        aria-label="Object pooling visualizer showing active particles and particle pool management"
       />
 
       <div className="mt-4 p-3 bg-bg-secondary rounded-lg">
@@ -1234,6 +1248,8 @@ export default function ParticleSystem() {
         height={360}
         className="w-full rounded-lg border border-border mb-4"
         style={{ maxWidth: '600px' }}
+        role="img"
+        aria-label={`VFX Toolkit - ${preset} particle effect with ${config.count} particles`}
       />
 
       {/* Controls Grid */}
@@ -1263,27 +1279,30 @@ export default function ParticleSystem() {
 
         {/* Particle Count */}
         <div className="bg-bg-secondary rounded-lg p-3">
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Layers className="w-4 h-4 text-[#00b894]" />
+          <label htmlFor="particle-count" className="text-sm text-text-secondary flex items-center gap-2 mb-2">
+            <Layers className="w-4 h-4 text-[#00b894]" aria-hidden="true" />
             Particle Count: {config.count}
           </label>
           <input
+            id="particle-count"
             type="range"
             min="10"
             max="500"
             value={config.count}
             onChange={(e) => setConfig(prev => ({ ...prev, count: Number(e.target.value) }))}
+            aria-label={`Particle count: ${config.count}`}
             className="w-full accent-[#00b894]"
           />
         </div>
 
         {/* Lifetime */}
         <div className="bg-bg-secondary rounded-lg p-3">
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Timer className="w-4 h-4 text-[#fdcb6e]" />
+          <label htmlFor="lifetime-slider" className="text-sm text-text-secondary flex items-center gap-2 mb-2">
+            <Timer className="w-4 h-4 text-[#fdcb6e]" aria-hidden="true" />
             Lifetime: {config.lifetime.min.toFixed(1)}s - {config.lifetime.max.toFixed(1)}s
           </label>
           <input
+            id="lifetime-slider"
             type="range"
             min="0.1"
             max="5"
@@ -1294,45 +1313,50 @@ export default function ParticleSystem() {
               lifetime: { min: prev.lifetime.min, max: Number(e.target.value) }
             }))}
             className="w-full accent-[#fdcb6e]"
+            aria-label={`Particle lifetime: ${config.lifetime.max.toFixed(1)} seconds`}
           />
         </div>
 
         {/* Gravity */}
         <div className="bg-bg-secondary rounded-lg p-3">
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Target className="w-4 h-4 text-[#e17055]" />
+          <label htmlFor="vfx-gravity" className="text-sm text-text-secondary flex items-center gap-2 mb-2">
+            <Target className="w-4 h-4 text-[#e17055]" aria-hidden="true" />
             Gravity: {config.gravity}
           </label>
           <input
+            id="vfx-gravity"
             type="range"
             min="-300"
             max="300"
             value={config.gravity}
             onChange={(e) => setConfig(prev => ({ ...prev, gravity: Number(e.target.value) }))}
             className="w-full accent-[#e17055]"
+            aria-label={`Gravity: ${config.gravity}`}
           />
         </div>
 
         {/* Wind */}
         <div className="bg-bg-secondary rounded-lg p-3">
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Wind className="w-4 h-4 text-[#74b9ff]" />
+          <label htmlFor="vfx-wind" className="text-sm text-text-secondary flex items-center gap-2 mb-2">
+            <Wind className="w-4 h-4 text-[#74b9ff]" aria-hidden="true" />
             Wind: {config.wind}
           </label>
           <input
+            id="vfx-wind"
             type="range"
             min="-150"
             max="150"
             value={config.wind}
             onChange={(e) => setConfig(prev => ({ ...prev, wind: Number(e.target.value) }))}
             className="w-full accent-[#74b9ff]"
+            aria-label={`Wind: ${config.wind}`}
           />
         </div>
 
         {/* Size */}
         <div className="bg-bg-secondary rounded-lg p-3">
           <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Move className="w-4 h-4 text-[#a29bfe]" />
+            <Move className="w-4 h-4 text-[#a29bfe]" aria-hidden="true" />
             Size: {config.size.start} → {config.size.end}
           </label>
           <div className="flex gap-2">
@@ -1346,6 +1370,7 @@ export default function ParticleSystem() {
                 size: { ...prev.size, start: Number(e.target.value) }
               }))}
               className="w-1/2 accent-[#a29bfe]"
+              aria-label={`Start size: ${config.size.start}`}
             />
             <input
               type="range"
@@ -1357,17 +1382,19 @@ export default function ParticleSystem() {
                 size: { ...prev.size, end: Number(e.target.value) }
               }))}
               className="w-1/2 accent-[#a29bfe]"
+              aria-label={`End size: ${config.size.end}`}
             />
           </div>
         </div>
 
         {/* Start Color */}
         <div className="bg-bg-secondary rounded-lg p-3">
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Palette className="w-4 h-4 text-[#ff7675]" />
+          <label htmlFor="start-color" className="text-sm text-text-secondary flex items-center gap-2 mb-2">
+            <Palette className="w-4 h-4 text-[#ff7675]" aria-hidden="true" />
             Start Color
           </label>
           <input
+            id="start-color"
             type="color"
             value={rgbToHex(config.startColor)}
             onChange={(e) => setConfig(prev => ({
