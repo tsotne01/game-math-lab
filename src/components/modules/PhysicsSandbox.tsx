@@ -909,7 +909,11 @@ export default function PhysicsSandbox() {
   }, [restitution, friction]);
   
   return (
-    <div className="relative w-full aspect-[4/3] bg-bg-secondary rounded-xl overflow-hidden border border-border">
+    <div 
+      className="relative w-full aspect-[4/3] md:aspect-[4/3] aspect-square bg-bg-secondary rounded-xl overflow-hidden border border-border"
+      role="application"
+      aria-label="3D Physics Sandbox - Interactive physics simulation"
+    >
       <Canvas
         camera={{ position: [15, 15, 15], fov: 50 }}
         shadows
@@ -945,16 +949,21 @@ export default function PhysicsSandbox() {
       </Canvas>
       
       {/* Control Panel */}
-      <div className="absolute top-4 left-4 bg-black/80 rounded-lg p-4 text-white text-sm max-w-[280px] max-h-[calc(100%-2rem)] overflow-y-auto">
-        <h3 className="font-bold text-accent mb-3 flex items-center gap-2">
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <div 
+        className="absolute top-2 left-2 md:top-4 md:left-4 bg-black/80 rounded-lg p-3 md:p-4 text-white text-sm max-w-[240px] md:max-w-[280px] max-h-[calc(100%-1rem)] md:max-h-[calc(100%-2rem)] overflow-y-auto"
+        role="region"
+        aria-label="Physics Controls"
+      >
+        <h3 className="font-bold text-accent mb-3 flex items-center gap-2" id="physics-controls-heading">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Physics Controls
         </h3>
         
         {/* Demo Selector */}
         <div className="mb-3">
-          <label className="block text-text-secondary text-xs mb-1">Demo Scene</label>
+          <label htmlFor="demo-select" className="block text-text-secondary text-xs mb-1">Demo Scene</label>
           <select 
+            id="demo-select"
             value={demo} 
             onChange={(e) => { setDemo(e.target.value as any); resetScene(); }}
             className="w-full bg-bg-card border border-border rounded px-2 py-1 text-xs"
@@ -971,10 +980,11 @@ export default function PhysicsSandbox() {
         
         {/* Gravity */}
         <div className="mb-3">
-          <label className="block text-text-secondary text-xs mb-1">
+          <label htmlFor="gravity-slider" className="block text-text-secondary text-xs mb-1">
             Gravity Y: {gravity[1].toFixed(1)}
           </label>
           <input
+            id="gravity-slider"
             type="range"
             min="-20"
             max="0"
@@ -982,15 +992,17 @@ export default function PhysicsSandbox() {
             value={gravity[1]}
             onChange={(e) => setGravity([0, parseFloat(e.target.value), 0])}
             className="w-full accent-accent"
+            aria-label={`Gravity strength: ${gravity[1].toFixed(1)}`}
           />
         </div>
         
         {/* Restitution */}
         <div className="mb-3">
-          <label className="block text-text-secondary text-xs mb-1">
+          <label htmlFor="restitution-slider" className="block text-text-secondary text-xs mb-1">
             Bounciness: {restitution.toFixed(2)}
           </label>
           <input
+            id="restitution-slider"
             type="range"
             min="0"
             max="1"
@@ -998,15 +1010,17 @@ export default function PhysicsSandbox() {
             value={restitution}
             onChange={(e) => setRestitution(parseFloat(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Bounciness: ${restitution.toFixed(2)}`}
           />
         </div>
         
         {/* Friction */}
         <div className="mb-3">
-          <label className="block text-text-secondary text-xs mb-1">
+          <label htmlFor="friction-slider" className="block text-text-secondary text-xs mb-1">
             Friction: {friction.toFixed(2)}
           </label>
           <input
+            id="friction-slider"
             type="range"
             min="0"
             max="1"
@@ -1014,35 +1028,41 @@ export default function PhysicsSandbox() {
             value={friction}
             onChange={(e) => setFriction(parseFloat(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Friction: ${friction.toFixed(2)}`}
           />
         </div>
         
         {/* Spawn Controls */}
         <div className="mb-3 flex gap-2">
+          <label htmlFor="spawn-shape" className="sr-only">Select shape to spawn</label>
           <select
+            id="spawn-shape"
             value={spawnShape}
             onChange={(e) => setSpawnShape(e.target.value as 'sphere' | 'box')}
             className="flex-1 bg-bg-card border border-border rounded px-2 py-1 text-xs"
+            aria-label="Shape to spawn"
           >
             <option value="sphere">Sphere</option>
             <option value="box">Box</option>
           </select>
           <button
             onClick={() => spawnObject()}
-            className="px-3 py-1 bg-accent text-black rounded text-xs font-bold hover:bg-accent/80"
+            className="px-3 py-1 bg-accent text-black rounded text-xs font-bold hover:bg-accent/80 touch-manipulation"
+            aria-label={`Shoot a ${spawnShape} into the scene`}
           >
             Shoot
           </button>
         </div>
         
         {/* Debug & Controls */}
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Display options">
           <label className="flex items-center gap-1 text-xs cursor-pointer">
             <input
               type="checkbox"
               checked={showDebug}
               onChange={(e) => setShowDebug(e.target.checked)}
               className="accent-accent"
+              aria-label="Toggle debug view showing collision shapes"
             />
             Debug View
           </label>
@@ -1052,22 +1072,25 @@ export default function PhysicsSandbox() {
               checked={raycastMode}
               onChange={(e) => setRaycastMode(e.target.checked)}
               className="accent-accent"
+              aria-label="Toggle raycast picking mode"
             />
             Raycast Pick
           </label>
         </div>
         
         {/* Action Buttons */}
-        <div className="flex gap-2">
+        <div className="flex gap-2" role="group" aria-label="Scene actions">
           <button
             onClick={clearObjects}
-            className="flex-1 px-2 py-1 bg-[#636e72] text-white rounded text-xs font-bold hover:bg-[#636e72]/80"
+            className="flex-1 px-2 py-1 bg-[#636e72] text-white rounded text-xs font-bold hover:bg-[#636e72]/80 touch-manipulation"
+            aria-label="Clear all spawned objects"
           >
             Clear
           </button>
           <button
             onClick={resetScene}
-            className="flex-1 px-2 py-1 bg-[#e17055] text-white rounded text-xs font-bold hover:bg-[#e17055]/80"
+            className="flex-1 px-2 py-1 bg-[#e17055] text-white rounded text-xs font-bold hover:bg-[#e17055]/80 touch-manipulation"
+            aria-label="Reset scene to initial state"
           >
             Reset
           </button>
@@ -1075,11 +1098,15 @@ export default function PhysicsSandbox() {
       </div>
       
       {/* Info Panel */}
-      <div className="absolute bottom-4 right-4 bg-black/80 rounded-lg p-3 text-white text-xs max-w-[200px]">
+      <div 
+        className="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-black/80 rounded-lg p-2 md:p-3 text-white text-xs max-w-[180px] md:max-w-[200px]"
+        role="note"
+        aria-label="Controls help"
+      >
         <p className="text-text-secondary">
           <strong className="text-accent">Drag</strong> to orbit
           <br />
-          <strong className="text-accent">Scroll</strong> to zoom
+          <strong className="text-accent">Pinch/Scroll</strong> to zoom
           <br />
           <strong className="text-accent">Shoot</strong> to launch objects
         </p>
@@ -1097,7 +1124,11 @@ export function RigidBodiesDemo() {
   const [physicsKey, setPhysicsKey] = useState(0);
   
   return (
-    <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border">
+    <div 
+      className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border"
+      role="application"
+      aria-label="Rigid Bodies Demo - Shows dynamic, static, and kinematic body types"
+    >
       <Canvas camera={{ position: [8, 8, 8], fov: 50 }} shadows>
         <Suspense fallback={<LoadingFallback />}>
           <ambientLight intensity={0.4} />
@@ -1178,7 +1209,11 @@ export function CollisionShapesDemo() {
   const [physicsKey, setPhysicsKey] = useState(0);
   
   return (
-    <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border">
+    <div 
+      className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border"
+      role="application"
+      aria-label="Collision Shapes Demo - Compares box, sphere, capsule, hull, and trimesh colliders"
+    >
       <Canvas camera={{ position: [10, 8, 10], fov: 50 }} shadows>
         <Suspense fallback={<LoadingFallback />}>
           <ambientLight intensity={0.4} />
@@ -1261,7 +1296,11 @@ export function CollisionShapesDemo() {
 // Forces Demo
 export function ForcesDemo() {
   return (
-    <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border">
+    <div 
+      className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border"
+      role="application"
+      aria-label="Forces Demo - Click balls to compare force vs impulse"
+    >
       <Canvas camera={{ position: [8, 8, 8], fov: 50 }} shadows>
         <Suspense fallback={<LoadingFallback />}>
           <ambientLight intensity={0.4} />
@@ -1332,7 +1371,11 @@ export function CollisionResponseDemo() {
   const [physicsKey, setPhysicsKey] = useState(0);
   
   return (
-    <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border">
+    <div 
+      className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border"
+      role="application"
+      aria-label="Collision Response Demo - Adjust restitution to change bounce behavior"
+    >
       <Canvas camera={{ position: [6, 6, 6], fov: 50 }} shadows>
         <Suspense fallback={<LoadingFallback />}>
           <ambientLight intensity={0.4} />
@@ -1354,11 +1397,12 @@ export function CollisionResponseDemo() {
         </Suspense>
       </Canvas>
       
-      <div className="absolute top-4 left-4 bg-black/80 rounded-lg p-3 text-white text-sm">
-        <label className="block text-text-secondary text-xs mb-1">
+      <div className="absolute top-4 left-4 bg-black/80 rounded-lg p-3 text-white text-sm" role="group" aria-label="Restitution control">
+        <label htmlFor="response-restitution" className="block text-text-secondary text-xs mb-1">
           Restitution (Bounciness): {restitution.toFixed(2)}
         </label>
         <input
+          id="response-restitution"
           type="range"
           min="0"
           max="1"
@@ -1366,6 +1410,7 @@ export function CollisionResponseDemo() {
           value={restitution}
           onChange={(e) => { setRestitution(parseFloat(e.target.value)); setPhysicsKey(k => k + 1); }}
           className="w-full accent-accent"
+          aria-label={`Restitution: ${restitution.toFixed(2)}`}
         />
       </div>
     </div>
@@ -1375,7 +1420,11 @@ export function CollisionResponseDemo() {
 // Joint Demo
 export function JointsDemo() {
   return (
-    <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border">
+    <div 
+      className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border"
+      role="application"
+      aria-label="Joints Demo - Shows revolute, spherical, and prismatic joint types"
+    >
       <Canvas camera={{ position: [10, 8, 10], fov: 50 }} shadows>
         <Suspense fallback={<LoadingFallback />}>
           <ambientLight intensity={0.4} />
@@ -1400,7 +1449,11 @@ export function RaycastDemo() {
   const [hits, setHits] = useState<THREE.Vector3[]>([]);
   
   return (
-    <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border">
+    <div 
+      className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden border border-border"
+      role="application"
+      aria-label="Raycast Demo - Click to cast rays and see hit markers"
+    >
       <Canvas camera={{ position: [8, 8, 8], fov: 50 }} shadows>
         <Suspense fallback={<LoadingFallback />}>
           <ambientLight intensity={0.4} />

@@ -466,20 +466,25 @@ export default function CameraController() {
             <h4 className="text-sm font-bold text-accent mb-2">Orbit Camera Controls</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Distance</label>
+                <label htmlFor="orbit-distance" className="text-xs text-text-secondary block mb-1">Distance</label>
                 <input
+                  id="orbit-distance"
                   type="range"
                   min="5"
                   max="30"
                   value={orbitDistance}
                   onChange={(e) => setOrbitDistance(Number(e.target.value))}
                   className="w-full accent-accent"
+                  aria-valuenow={orbitDistance}
+                  aria-valuemin={5}
+                  aria-valuemax={30}
                 />
-                <span className="text-xs text-accent">{orbitDistance}</span>
+                <span className="text-xs text-accent" aria-hidden="true">{orbitDistance}</span>
               </div>
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Damping</label>
+                <label htmlFor="orbit-damping" className="text-xs text-text-secondary block mb-1">Damping</label>
                 <input
+                  id="orbit-damping"
                   type="range"
                   min="0.01"
                   max="0.2"
@@ -487,8 +492,11 @@ export default function CameraController() {
                   value={orbitDamping}
                   onChange={(e) => setOrbitDamping(Number(e.target.value))}
                   className="w-full accent-accent"
+                  aria-valuenow={orbitDamping}
+                  aria-valuemin={0.01}
+                  aria-valuemax={0.2}
                 />
-                <span className="text-xs text-accent">{orbitDamping.toFixed(2)}</span>
+                <span className="text-xs text-accent" aria-hidden="true">{orbitDamping.toFixed(2)}</span>
               </div>
               <div className="col-span-2 flex items-center gap-2">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -497,6 +505,7 @@ export default function CameraController() {
                     checked={orbitAutoRotate}
                     onChange={(e) => setOrbitAutoRotate(e.target.checked)}
                     className="accent-accent w-4 h-4"
+                    aria-label="Auto rotate camera"
                   />
                   <span className="text-xs text-text-secondary">Auto Rotate</span>
                 </label>
@@ -508,36 +517,51 @@ export default function CameraController() {
         {cameraType === 'fps' && (
           <>
             <h4 className="text-sm font-bold text-accent mb-2">First-Person Controls</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">Mouse Sensitivity</label>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="3"
-                  step="0.1"
-                  value={fpsSensitivity}
-                  onChange={(e) => setFpsSensitivity(Number(e.target.value))}
-                  className="w-full accent-accent"
-                />
-                <span className="text-xs text-accent">{fpsSensitivity.toFixed(1)}</span>
+            <div className="hidden sm:block">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="fps-sensitivity" className="text-xs text-text-secondary block mb-1">Mouse Sensitivity</label>
+                  <input
+                    id="fps-sensitivity"
+                    type="range"
+                    min="0.1"
+                    max="3"
+                    step="0.1"
+                    value={fpsSensitivity}
+                    onChange={(e) => setFpsSensitivity(Number(e.target.value))}
+                    className="w-full accent-accent"
+                    aria-valuenow={fpsSensitivity}
+                    aria-valuemin={0.1}
+                    aria-valuemax={3}
+                  />
+                  <span className="text-xs text-accent" aria-hidden="true">{fpsSensitivity.toFixed(1)}</span>
+                </div>
+                <div>
+                  <label htmlFor="fps-speed" className="text-xs text-text-secondary block mb-1">Move Speed</label>
+                  <input
+                    id="fps-speed"
+                    type="range"
+                    min="1"
+                    max="15"
+                    value={fpsSpeed}
+                    onChange={(e) => setFpsSpeed(Number(e.target.value))}
+                    className="w-full accent-accent"
+                    aria-valuenow={fpsSpeed}
+                    aria-valuemin={1}
+                    aria-valuemax={15}
+                  />
+                  <span className="text-xs text-accent" aria-hidden="true">{fpsSpeed}</span>
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">Move Speed</label>
-                <input
-                  type="range"
-                  min="1"
-                  max="15"
-                  value={fpsSpeed}
-                  onChange={(e) => setFpsSpeed(Number(e.target.value))}
-                  className="w-full accent-accent"
-                />
-                <span className="text-xs text-accent">{fpsSpeed}</span>
-              </div>
+              <p className="text-xs text-text-secondary mt-2">
+                WASD to move • Mouse to look • Shift to sprint • ESC to release
+              </p>
             </div>
-            <p className="text-xs text-text-secondary mt-2">
-              WASD to move • Mouse to look • Shift to sprint • ESC to release
-            </p>
+            <div className="sm:hidden p-3 bg-bg-card rounded-lg border border-border">
+              <p className="text-xs text-text-secondary text-center">
+                ⌨️ First-person controls require keyboard and mouse. Try on desktop for the full experience!
+              </p>
+            </div>
           </>
         )}
 
@@ -546,32 +570,41 @@ export default function CameraController() {
             <h4 className="text-sm font-bold text-accent mb-2">Follow Camera Controls</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Height Offset</label>
+                <label htmlFor="follow-height" className="text-xs text-text-secondary block mb-1">Height Offset</label>
                 <input
+                  id="follow-height"
                   type="range"
                   min="1"
                   max="15"
                   value={followOffset.y}
                   onChange={(e) => setFollowOffset(new THREE.Vector3(followOffset.x, Number(e.target.value), followOffset.z))}
                   className="w-full accent-accent"
+                  aria-valuenow={followOffset.y}
+                  aria-valuemin={1}
+                  aria-valuemax={15}
                 />
-                <span className="text-xs text-accent">{followOffset.y}</span>
+                <span className="text-xs text-accent" aria-hidden="true">{followOffset.y}</span>
               </div>
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Distance</label>
+                <label htmlFor="follow-distance" className="text-xs text-text-secondary block mb-1">Distance</label>
                 <input
+                  id="follow-distance"
                   type="range"
                   min="2"
                   max="20"
                   value={followOffset.z}
                   onChange={(e) => setFollowOffset(new THREE.Vector3(followOffset.x, followOffset.y, Number(e.target.value)))}
                   className="w-full accent-accent"
+                  aria-valuenow={followOffset.z}
+                  aria-valuemin={2}
+                  aria-valuemax={20}
                 />
-                <span className="text-xs text-accent">{followOffset.z}</span>
+                <span className="text-xs text-accent" aria-hidden="true">{followOffset.z}</span>
               </div>
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Smoothing</label>
+                <label htmlFor="follow-smoothing" className="text-xs text-text-secondary block mb-1">Smoothing</label>
                 <input
+                  id="follow-smoothing"
                   type="range"
                   min="0.5"
                   max="10"
@@ -579,8 +612,11 @@ export default function CameraController() {
                   value={followSmoothing}
                   onChange={(e) => setFollowSmoothing(Number(e.target.value))}
                   className="w-full accent-accent"
+                  aria-valuenow={followSmoothing}
+                  aria-valuemin={0.5}
+                  aria-valuemax={10}
                 />
-                <span className="text-xs text-accent">{followSmoothing}</span>
+                <span className="text-xs text-accent" aria-hidden="true">{followSmoothing}</span>
               </div>
             </div>
           </>
@@ -595,12 +631,14 @@ export default function CameraController() {
                 className={`px-4 py-2 rounded text-sm font-bold transition-colors ${
                   cinematicPlaying ? 'bg-[#e17055] text-white' : 'bg-[#00b894] text-white'
                 }`}
+                aria-label={cinematicPlaying ? 'Pause cinematic camera' : 'Play cinematic camera'}
               >
                 {cinematicPlaying ? 'Pause' : 'Play'}
               </button>
               <button
                 onClick={() => setCinematicTime(0)}
                 className="px-4 py-2 rounded bg-bg-card text-text-secondary hover:bg-border text-sm"
+                aria-label="Reset cinematic camera to beginning"
               >
                 Reset
               </button>
@@ -610,18 +648,20 @@ export default function CameraController() {
                   checked={cinematicLoop}
                   onChange={(e) => setCinematicLoop(e.target.checked)}
                   className="accent-accent w-4 h-4"
+                  aria-label="Loop cinematic playback"
                 />
                 <span className="text-xs text-text-secondary">Loop</span>
               </label>
             </div>
             <div className="mt-3">
               <p className="text-xs text-text-secondary mb-2">Keyframe Timeline:</p>
-              <div className="flex gap-1">
+              <div className="flex gap-1" role="progressbar" aria-label="Cinematic keyframe timeline">
                 {cinematicKeyframes.map((kf, i) => (
                   <div
                     key={i}
                     className="flex-1 h-2 rounded bg-accent/30 relative"
                     title={`Keyframe ${i + 1}: t=${kf.time}s`}
+                    aria-label={`Keyframe ${i + 1} at ${kf.time} seconds`}
                   >
                     <div className="absolute left-0 top-0 h-full bg-accent rounded" style={{ width: '4px' }} />
                   </div>
@@ -750,19 +790,24 @@ export function FrustumVisualizer() {
     <div className="space-y-4" role="application" aria-label="Camera Frustum Visualizer">
       <div className="grid grid-cols-3 gap-3 md:gap-4 bg-bg-secondary p-3 md:p-4 rounded-lg">
         <div>
-          <label className="text-xs text-text-secondary block mb-1">FOV: {fov}°</label>
+          <label htmlFor="frustum-fov" className="text-xs text-text-secondary block mb-1">FOV: {fov}°</label>
           <input
+            id="frustum-fov"
             type="range"
             min="20"
             max="120"
             value={fov}
             onChange={(e) => setFov(Number(e.target.value))}
             className="w-full accent-accent"
+            aria-valuenow={fov}
+            aria-valuemin={20}
+            aria-valuemax={120}
           />
         </div>
         <div>
-          <label className="text-xs text-text-secondary block mb-1">Near: {near}m</label>
+          <label htmlFor="frustum-near" className="text-xs text-text-secondary block mb-1">Near: {near}m</label>
           <input
+            id="frustum-near"
             type="range"
             min="0.1"
             max="10"
@@ -770,17 +815,24 @@ export function FrustumVisualizer() {
             value={near}
             onChange={(e) => setNear(Number(e.target.value))}
             className="w-full accent-[#51cf66]"
+            aria-valuenow={near}
+            aria-valuemin={0.1}
+            aria-valuemax={10}
           />
         </div>
         <div>
-          <label className="text-xs text-text-secondary block mb-1">Far: {far}m</label>
+          <label htmlFor="frustum-far" className="text-xs text-text-secondary block mb-1">Far: {far}m</label>
           <input
+            id="frustum-far"
             type="range"
             min="5"
             max="30"
             value={far}
             onChange={(e) => setFar(Number(e.target.value))}
             className="w-full accent-[#ff6b6b]"
+            aria-valuenow={far}
+            aria-valuemin={5}
+            aria-valuemax={30}
           />
         </div>
       </div>
