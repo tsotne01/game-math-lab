@@ -1187,7 +1187,12 @@ export default function ParticleSystem() {
             key={id}
             onClick={() => applyPreset(id)}
             className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-all ${preset === id ? 'ring-2 ring-offset-2 ring-offset-bg-card' : 'opacity-70 hover:opacity-100'}`}
-            style={{ backgroundColor: preset === id ? color : 'rgba(255,255,255,0.1)', color: preset === id ? '#000' : color, ringColor: color }}
+            style={{ 
+              backgroundColor: preset === id ? color : 'rgba(255,255,255,0.1)', 
+              color: preset === id ? '#000' : color,
+              // @ts-expect-error CSS custom property for ring color
+              '--tw-ring-color': color
+            }}
           >
             <Icon className="w-4 h-4" />
             <span className="text-sm font-medium">{label}</span>
