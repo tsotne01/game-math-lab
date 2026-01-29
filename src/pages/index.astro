@@ -130,12 +130,48 @@ const modules = [
     ready: true
   },
   {
+    number: '15',
+    title: 'Lighting & Shading',
+    project: 'Lighting Playground',
+    topics: 'Phong, Diffuse, Specular, Shadows',
+    difficulty: 'hard',
+    href: '/modules/15-lighting/',
+    ready: true
+  },
+  {
     number: '16',
     title: 'Materials & Textures',
     project: 'PBR Material Editor',
     topics: 'UV Mapping, Normal Maps, PBR',
     difficulty: 'hard',
     href: '/modules/16-materials/',
+    ready: true
+  },
+  {
+    number: '18',
+    title: '3D Physics',
+    project: 'Physics Sandbox',
+    topics: 'Rigid Bodies, Collisions, Joints',
+    difficulty: 'hard',
+    href: '/modules/18-physics3d/',
+    ready: true
+  },
+  {
+    number: '19',
+    title: 'Shaders & GLSL',
+    project: 'Shader Playground',
+    topics: 'GPU Pipeline, Vertex/Fragment, Effects',
+    difficulty: 'hard',
+    href: '/modules/19-shaders/',
+    ready: true
+  },
+  {
+    number: '20',
+    title: 'Scene Graph & Optimization',
+    project: 'Scene Editor',
+    topics: 'Hierarchies, Culling, LOD, Instancing',
+    difficulty: 'hard',
+    href: '/modules/20-scene-graph/',
     ready: true
   }
 ];
@@ -240,7 +276,7 @@ const difficultyDotColors = {
       </div>
       
       <p class="text-text-secondary" id="progress-text">
-        0 / 15 modules completed
+        0 / 18 modules completed
       </p>
     </div>
   </section>
@@ -256,7 +292,7 @@ const difficultyDotColors = {
   function updateProgressUI() {
     const progress = getProgress();
     const completed = progress.completed.length;
-    const total = 15;
+    const total = 18;
     const percentage = (completed / total) * 100;
 
     const bar = document.getElementById('progress-bar');

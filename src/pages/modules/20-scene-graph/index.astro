@@ -1,0 +1,841 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import SceneEditor, { 
+  HierarchyTransformDemo, 
+  FrustumCullingDemo, 
+  LODDemo, 
+  InstancingDemo,
+  DrawCallAnalyzer,
+  OptimizationComparison 
+} from '../../../components/modules/SceneEditor';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 20
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'What is the main benefit of using a scene graph hierarchy?',
+    options: [
+      'It makes rendering faster',
+      'Child transforms are relative to parents, making complex objects easier to animate',
+      'It reduces memory usage',
+      'It improves texture quality'
+    ],
+    correctIndex: 1,
+    explanation: 'Scene graphs allow child objects to inherit parent transforms. When you move the parent, all children move with it. This makes animating complex objects (like characters with limbs) much easier.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'How do you calculate a child object\'s world position?',
+    options: [
+      'Just use the child\'s local position',
+      'Add parent position + child position',
+      'Multiply parent world matrix × child local matrix',
+      'Subtract child position from parent position'
+    ],
+    correctIndex: 2,
+    explanation: 'To get world coordinates, you multiply the parent\'s world matrix by the child\'s local matrix. This combines all transformations (translation, rotation, scale) from the entire hierarchy.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is frustum culling?',
+    options: [
+      'Removing objects that are too small to see',
+      'Skipping objects that are outside the camera\'s view',
+      'Reducing polygon count on distant objects',
+      'Combining multiple objects into one draw call'
+    ],
+    correctIndex: 1,
+    explanation: 'Frustum culling tests each object against the camera\'s view frustum (the pyramid-shaped visible area). Objects completely outside the frustum are skipped entirely — they\'re never sent to the GPU.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does LOD (Level of Detail) do?',
+    options: [
+      'Changes texture resolution based on GPU power',
+      'Swaps high-poly models for low-poly versions at distance',
+      'Removes objects that are behind other objects',
+      'Adjusts frame rate based on scene complexity'
+    ],
+    correctIndex: 1,
+    explanation: 'LOD swaps detailed models for simpler versions when objects are far from the camera. Since distant objects appear smaller, players can\'t see the reduced detail — but the GPU processes far fewer triangles.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'Why is instancing so much faster than individual objects?',
+    options: [
+      'It uses smaller textures',
+      'It renders everything in a single draw call',
+      'It skips the vertex shader',
+      'It uses less RAM'
+    ],
+    correctIndex: 1,
+    explanation: 'Instancing sends geometry to the GPU once, then draws it many times with different transforms in a single draw call. Without instancing, each object needs a separate draw call — and draw calls are expensive!'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the world matrix calculation:',
+    codeTemplate: `function getWorldMatrix(node) {
+  const localMatrix = node.getLocalMatrix();
+  if (node.parent) {
+    const parentWorld = getWorldMatrix(node.parent);
+    return parentWorld.___(localMatrix);
+  }
+  return localMatrix;
+}`,
+    answers: ['multiply'],
+    explanation: 'To get the world matrix, you recursively multiply parent world matrices with local matrices. The multiplication order matters: parent × local transforms from parent space to world space.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What causes excessive draw calls?',
+    options: [
+      'Too many triangles in the scene',
+      'Using unique materials and geometries for each object',
+      'High resolution textures',
+      'Complex shader calculations'
+    ],
+    correctIndex: 1,
+    explanation: 'Each unique material or geometry combination typically requires a separate draw call. Sharing materials and geometries across objects (batching) dramatically reduces draw calls.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'When profiling a game, you see 500 draw calls for 500 cubes. What optimization would help most?',
+    options: [
+      'Reduce cube polygon count',
+      'Use smaller textures',
+      'Use instancing or batch the cubes',
+      'Add frustum culling'
+    ],
+    correctIndex: 2,
+    explanation: 'If all cubes use the same geometry and material, instancing can render them all in 1-2 draw calls instead of 500. This is the most impactful optimization for this scenario.'
+  }
+];
+
+// Code snippets
+const codeSceneGraph = `// Scene Graph: a tree of objects
+// Each node has a parent and children
+interface SceneNode {
+  id: string;
+  name: string;
+  parent: SceneNode | null;
+  children: SceneNode[];
+  
+  // Local transform (relative to parent)
+  position: Vector3;
+  rotation: Quaternion;
+  scale: Vector3;
+  
+  // Computed world transform
+  worldMatrix: Matrix4;
+}
+
+// Tree traversal - visit all nodes
+function traverse(node: SceneNode, callback: (n: SceneNode) => void) {
+  callback(node);
+  for (const child of node.children) {
+    traverse(child, callback);
+  }
+}
+
+// Example: count all objects in scene
+let count = 0;
+traverse(rootNode, () => count++);`;
+
+const codeLocalToWorld = `// Local transform: relative to parent
+// World transform: absolute position in scene
+
+function updateWorldMatrix(node: SceneNode) {
+  // Build local matrix from position, rotation, scale
+  const localMatrix = new Matrix4();
+  localMatrix.compose(node.position, node.rotation, node.scale);
+  
+  if (node.parent) {
+    // World = Parent's World × Local
+    // This "chains" all transformations up the hierarchy
+    node.worldMatrix = node.parent.worldMatrix.clone()
+      .multiply(localMatrix);
+  } else {
+    // Root node: world = local
+    node.worldMatrix = localMatrix;
+  }
+  
+  // Recursively update children
+  for (const child of node.children) {
+    updateWorldMatrix(child);
+  }
+}
+
+// Extract world position from matrix
+function getWorldPosition(node: SceneNode): Vector3 {
+  const pos = new Vector3();
+  node.worldMatrix.decompose(pos, new Quaternion(), new Vector3());
+  return pos;
+}`;
+
+const codeFrustumCulling = `// The view frustum is a truncated pyramid
+// Defined by 6 planes: near, far, left, right, top, bottom
+
+class Frustum {
+  planes: Plane[] = []; // 6 planes
+  
+  setFromCamera(camera: Camera) {
+    // Build frustum from camera's projection × view matrix
+    const matrix = camera.projectionMatrix.clone()
+      .multiply(camera.matrixWorldInverse);
+    this.setFromProjectionMatrix(matrix);
+  }
+  
+  // Test if a sphere intersects the frustum
+  intersectsSphere(sphere: Sphere): boolean {
+    for (const plane of this.planes) {
+      // Distance from sphere center to plane
+      const dist = plane.distanceToPoint(sphere.center);
+      
+      // If sphere is completely behind any plane, it's outside
+      if (dist < -sphere.radius) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+// In your render loop:
+function render(scene: Scene, camera: Camera) {
+  frustum.setFromCamera(camera);
+  
+  for (const object of scene.objects) {
+    // Get object's bounding sphere
+    const sphere = object.boundingSphere;
+    
+    // Skip if outside frustum
+    if (!frustum.intersectsSphere(sphere)) {
+      continue; // CULLED - don't render!
+    }
+    
+    renderObject(object);
+  }
+}`;
+
+const codeLOD = `// LOD: swap models based on camera distance
+
+class LODGroup {
+  levels: { distance: number; mesh: Mesh }[] = [];
+  
+  constructor() {
+    // Add levels from highest to lowest detail
+    // Lower distance = used when camera is closer
+  }
+  
+  addLevel(mesh: Mesh, distance: number) {
+    this.levels.push({ mesh, distance });
+    // Keep sorted by distance
+    this.levels.sort((a, b) => a.distance - b.distance);
+  }
+  
+  update(cameraPosition: Vector3) {
+    const distance = this.position.distanceTo(cameraPosition);
+    
+    // Find appropriate LOD level
+    let activeMesh = this.levels[0].mesh; // default: highest detail
+    
+    for (const level of this.levels) {
+      if (distance >= level.distance) {
+        activeMesh = level.mesh;
+      }
+    }
+    
+    // Show only the active LOD
+    for (const level of this.levels) {
+      level.mesh.visible = (level.mesh === activeMesh);
+    }
+  }
+}
+
+// Usage:
+const lodGroup = new LODGroup();
+lodGroup.addLevel(highPolyMesh,   0);    // 0-10 units
+lodGroup.addLevel(mediumPolyMesh, 10);   // 10-30 units  
+lodGroup.addLevel(lowPolyMesh,    30);   // 30-100 units
+lodGroup.addLevel(billboardSprite, 100); // 100+ units`;
+
+const codeInstancing = `// Instancing: render many copies with ONE draw call
+
+// Traditional way (SLOW - many draw calls):
+for (let i = 0; i < 10000; i++) {
+  const mesh = new Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  scene.add(mesh); // Each mesh = separate draw call!
+}
+
+// Instanced way (FAST - single draw call):
+const instancedMesh = new InstancedMesh(
+  geometry,   // Shared geometry
+  material,   // Shared material  
+  10000       // Instance count
+);
+
+// Set each instance's transform via a matrix
+const dummy = new Object3D();
+for (let i = 0; i < 10000; i++) {
+  dummy.position.set(x, y, z);
+  dummy.rotation.set(rx, ry, rz);
+  dummy.scale.setScalar(s);
+  dummy.updateMatrix();
+  
+  instancedMesh.setMatrixAt(i, dummy.matrix);
+}
+instancedMesh.instanceMatrix.needsUpdate = true;
+
+scene.add(instancedMesh); // ONE object = ONE draw call!
+
+// Can also use per-instance colors:
+instancedMesh.setColorAt(i, new Color('red'));
+instancedMesh.instanceColor.needsUpdate = true;`;
+
+const codeBatching = `// Draw Call Optimization Strategies
+
+// 1. SHARE GEOMETRIES
+// Bad: unique geometry per object
+objects.forEach(obj => {
+  obj.geometry = new BoxGeometry(); // Creates new buffer!
+});
+
+// Good: shared geometry
+const sharedGeometry = new BoxGeometry();
+objects.forEach(obj => {
+  obj.geometry = sharedGeometry; // Reuses same buffer!
+});
+
+// 2. SHARE MATERIALS
+// Bad: unique material per object  
+objects.forEach(obj => {
+  obj.material = new MeshStandardMaterial({ color: 'red' });
+});
+
+// Good: shared material (if objects look the same)
+const sharedMaterial = new MeshStandardMaterial({ color: 'red' });
+objects.forEach(obj => {
+  obj.material = sharedMaterial;
+});
+
+// 3. TEXTURE ATLASES
+// Instead of many textures, combine into one atlas
+// UV coordinates point to different regions
+
+// 4. STATIC BATCHING (Three.js BufferGeometryUtils)
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils';
+
+// Merge static objects into single geometry
+const merged = mergeGeometries(geometries);
+const batchedMesh = new Mesh(merged, sharedMaterial);
+// Now it's ONE draw call for all merged objects!`;
+
+const codeProfiling = `// Three.js provides render statistics
+const renderer = new WebGLRenderer();
+
+// Access stats after each frame
+function animate() {
+  renderer.render(scene, camera);
+  
+  const info = renderer.info;
+  console.log({
+    drawCalls: info.render.calls,
+    triangles: info.render.triangles,
+    points: info.render.points,
+    lines: info.render.lines,
+    
+    // Memory usage
+    geometries: info.memory.geometries,
+    textures: info.memory.textures
+  });
+  
+  // Reset per-frame stats
+  renderer.info.reset();
+}
+
+// Stats.js for FPS monitoring
+import Stats from 'three/addons/libs/stats.module';
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
+function animate() {
+  stats.begin();
+  renderer.render(scene, camera);
+  stats.end();
+  requestAnimationFrame(animate);
+}
+
+// Chrome DevTools:
+// - Performance tab: record frames, find bottlenecks
+// - Layers panel: see compositing layers
+// - GPU profiling in "Performance" > "Show screenshots"`;
+---
+
+<ModuleLayout 
+  title="Scene Graph & Optimization"
+  moduleNumber="20"
+  projectName="Scene Editor"
+  prevModule={{ href: '/modules/13-3d-intro/', title: 'Intro to 3D Math' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl p-6 mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#ffd43b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+        <span class="text-[#ffd43b] font-bold uppercase tracking-wider text-sm">Performance Module</span>
+      </div>
+      <p class="text-text-secondary">
+        Learn how game engines organize scenes and optimize rendering. You'll understand why some games 
+        run smoothly with millions of objects while others struggle with hundreds. Master the techniques 
+        used by AAA engines!
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: Scene Graphs -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17h.01"/><path d="M7 7h.01"/><path d="M12 12h.01"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 17v-6h6"/><path d="M17 7v6h-6"/></svg>
+      1. Scene Graphs
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      A <strong class="text-white">scene graph</strong> is a tree structure that organizes all objects in your game world. 
+      Every game engine uses one — Unity, Unreal, Godot, Three.js. Understanding scene graphs is fundamental to 
+      understanding how games work!
+    </p>
+    
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card border border-border rounded-lg p-4">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          Key Concepts
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• <strong class="text-white">Root</strong> — The top-level scene container</li>
+          <li>• <strong class="text-white">Parent</strong> — An object that contains children</li>
+          <li>• <strong class="text-white">Child</strong> — An object attached to a parent</li>
+          <li>• <strong class="text-white">Sibling</strong> — Objects with the same parent</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card border border-border rounded-lg p-4">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          Why Use Hierarchies?
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Move a character = all limbs follow</li>
+          <li>• Rotate a car = wheels stay attached</li>
+          <li>• Scale a group = everything scales together</li>
+          <li>• Toggle visibility = hide entire subtrees</li>
+        </ul>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeSceneGraph} language="typescript" />
+  </section>
+
+  <!-- Lesson 2: Transform Hierarchies -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="7.5 19.79 7.5 14.6 3 12"/><polyline points="21 12 16.5 14.6 16.5 19.79"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></svg>
+      2. Transform Hierarchies
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Each object has a <strong class="text-white">local transform</strong> (relative to its parent) and a 
+      <strong class="text-white">world transform</strong> (absolute position in the scene). The magic happens 
+      when we multiply matrices up the hierarchy!
+    </p>
+    
+    <div class="bg-bg-card border border-border rounded-lg p-4 mb-6">
+      <div class="text-center font-mono text-sm">
+        <span class="text-[#6c5ce7]">World Matrix</span> = 
+        <span class="text-[#00b894]">Parent World</span> × 
+        <span class="text-[#fd79a8]">Local Matrix</span>
+      </div>
+      <p class="text-xs text-text-secondary text-center mt-2">
+        Applied recursively from root to leaf nodes
+      </p>
+    </div>
+
+    <CodeBlock client:load code={codeLocalToWorld} language="typescript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Hierarchy Transform Demo</h3>
+    <p class="text-text-secondary mb-4">
+      Move or rotate the parent cube and watch how all children follow. The children's positions 
+      are relative to the parent!
+    </p>
+    <HierarchyTransformDemo client:visible />
+  </section>
+
+  <!-- Lesson 3: Frustum Culling -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      3. Frustum Culling
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Why render objects the camera can't see? <strong class="text-white">Frustum culling</strong> tests 
+      each object against the camera's view volume (a truncated pyramid called a "frustum"). Objects 
+      completely outside are skipped!
+    </p>
+    
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-card border border-border rounded-lg p-4 text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <div class="text-sm font-semibold text-white">Inside Frustum</div>
+        <div class="text-xs text-text-secondary">Rendered normally</div>
+      </div>
+      <div class="bg-bg-card border border-border rounded-lg p-4 text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+        <div class="text-sm font-semibold text-white">Intersecting</div>
+        <div class="text-xs text-text-secondary">Rendered (might be partially visible)</div>
+      </div>
+      <div class="bg-bg-card border border-border rounded-lg p-4 text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" x2="23" y1="1" y2="23"/></svg>
+        <div class="text-sm font-semibold text-white">Outside Frustum</div>
+        <div class="text-xs text-text-secondary">CULLED (not rendered!)</div>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeFrustumCulling} language="typescript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Frustum Culling Demo</h3>
+    <p class="text-text-secondary mb-4">
+      Rotate the camera to see objects get culled. Red objects are outside the frustum and won't be rendered!
+    </p>
+    <FrustumCullingDemo client:visible />
+  </section>
+
+  <!-- Lesson 4: Level of Detail (LOD) -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      4. Level of Detail (LOD)
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      A tree 100 meters away doesn't need 10,000 polygons. <strong class="text-white">LOD</strong> systems 
+      swap high-detail models for simpler versions at distance. The player can't tell the difference, 
+      but your GPU will thank you!
+    </p>
+    
+    <div class="bg-bg-card border border-border rounded-lg p-4 mb-6">
+      <h4 class="font-semibold text-white mb-3">Typical LOD Levels</h4>
+      <div class="grid grid-cols-4 gap-2 text-center text-sm">
+        <div class="bg-[#00b894]/20 border border-[#00b894]/50 rounded p-2">
+          <div class="font-semibold text-[#00b894]">LOD 0</div>
+          <div class="text-xs text-text-secondary">Full detail</div>
+          <div class="text-xs text-text-secondary">0-10m</div>
+        </div>
+        <div class="bg-[#fdcb6e]/20 border border-[#fdcb6e]/50 rounded p-2">
+          <div class="font-semibold text-[#fdcb6e]">LOD 1</div>
+          <div class="text-xs text-text-secondary">50% polys</div>
+          <div class="text-xs text-text-secondary">10-30m</div>
+        </div>
+        <div class="bg-[#e17055]/20 border border-[#e17055]/50 rounded p-2">
+          <div class="font-semibold text-[#e17055]">LOD 2</div>
+          <div class="text-xs text-text-secondary">25% polys</div>
+          <div class="text-xs text-text-secondary">30-100m</div>
+        </div>
+        <div class="bg-[#d63031]/20 border border-[#d63031]/50 rounded p-2">
+          <div class="font-semibold text-[#d63031]">LOD 3</div>
+          <div class="text-xs text-text-secondary">Billboard</div>
+          <div class="text-xs text-text-secondary">100m+</div>
+        </div>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeLOD} language="typescript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: LOD Distance Demo</h3>
+    <p class="text-text-secondary mb-4">
+      Move the camera closer and farther to see the model swap between LOD levels. 
+      Watch the triangle count change!
+    </p>
+    <LODDemo client:visible />
+  </section>
+
+  <!-- Lesson 5: Instancing -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="8" x="2" y="2" rx="2"/><path d="M14 2c1.1 0 2 .9 2 2v4c0 1.1-.9 2-2 2"/><path d="M20 2c1.1 0 2 .9 2 2v4c0 1.1-.9 2-2 2"/><rect width="8" height="8" x="2" y="14" rx="2"/><path d="M14 14c1.1 0 2 .9 2 2v4c0 1.1-.9 2-2 2"/><path d="M20 14c1.1 0 2 .9 2 2v4c0 1.1-.9 2-2 2"/></svg>
+      5. Instancing
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Need to render a forest with 10,000 trees? <strong class="text-white">Instancing</strong> draws 
+      the same mesh thousands of times in a single draw call. Each instance can have its own position, 
+      rotation, scale, and even color!
+    </p>
+    
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+        <h4 class="font-semibold text-red-400 mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          Without Instancing
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• 10,000 objects = 10,000 draw calls</li>
+          <li>• Each draw call has CPU overhead</li>
+          <li>• GPU state changes per object</li>
+          <li>• Performance tanks quickly</li>
+        </ul>
+      </div>
+      <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+        <h4 class="font-semibold text-green-400 mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          With Instancing
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• 10,000 objects = 1 draw call!</li>
+          <li>• Transforms stored in GPU buffer</li>
+          <li>• Minimal CPU overhead</li>
+          <li>• Massive performance gains</li>
+        </ul>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeInstancing} language="typescript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Instancing Demo</h3>
+    <p class="text-text-secondary mb-4">
+      Toggle instancing on/off to see the dramatic difference in draw calls and FPS. 
+      With instancing, we render 10x more objects with better performance!
+    </p>
+    <InstancingDemo client:visible />
+  </section>
+
+  <!-- Lesson 6: Batching & Draw Calls -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="14" y="3" rx="1"/><path d="M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3"/></svg>
+      6. Batching & Draw Calls
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Every <strong class="text-white">draw call</strong> is a command from CPU to GPU. They're expensive! 
+      <strong class="text-white">Batching</strong> combines objects to minimize draw calls. The key insight: 
+      objects sharing materials and geometries can often be batched together.
+    </p>
+    
+    <div class="bg-bg-card border border-border rounded-lg p-4 mb-6">
+      <h4 class="font-semibold text-white mb-3 flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+        What Causes New Draw Calls?
+      </h4>
+      <div class="grid md:grid-cols-2 gap-4 text-sm">
+        <ul class="text-text-secondary space-y-1">
+          <li>• Different <strong class="text-white">material</strong></li>
+          <li>• Different <strong class="text-white">geometry/mesh</strong></li>
+          <li>• Different <strong class="text-white">texture</strong></li>
+        </ul>
+        <ul class="text-text-secondary space-y-1">
+          <li>• Different <strong class="text-white">shader</strong></li>
+          <li>• Different <strong class="text-white">render state</strong></li>
+          <li>• Transparency sorting</li>
+        </ul>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeBatching} language="typescript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Draw Call Analyzer</h3>
+    <p class="text-text-secondary mb-4">
+      Toggle batching to see how sharing materials and geometries affects draw call count!
+    </p>
+    <DrawCallAnalyzer client:visible />
+  </section>
+
+  <!-- Lesson 7: Profiling & Debugging -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      7. Profiling & Debugging
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      You can't optimize what you can't measure! Learn to use profiling tools to find performance 
+      bottlenecks. Is it CPU-bound? GPU-bound? Too many draw calls? Profiling tells you where to focus.
+    </p>
+    
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-card border border-border rounded-lg p-4">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          Stats.js
+        </h4>
+        <ul class="text-xs text-text-secondary space-y-1">
+          <li>• FPS counter</li>
+          <li>• Frame time graph</li>
+          <li>• Memory usage</li>
+          <li>• Easy to integrate</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card border border-border rounded-lg p-4">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          renderer.info
+        </h4>
+        <ul class="text-xs text-text-secondary space-y-1">
+          <li>• Draw call count</li>
+          <li>• Triangle count</li>
+          <li>• Texture count</li>
+          <li>• Geometry count</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card border border-border rounded-lg p-4">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg>
+          Chrome DevTools
+        </h4>
+        <ul class="text-xs text-text-secondary space-y-1">
+          <li>• Performance timeline</li>
+          <li>• Frame analysis</li>
+          <li>• GPU profiling</li>
+          <li>• Memory snapshots</li>
+        </ul>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeProfiling} language="typescript" />
+    
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/50 rounded-lg p-4 mt-6">
+      <h4 class="font-semibold text-[#fdcb6e] mb-2 flex items-center gap-2">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Optimization Rules of Thumb
+      </h4>
+      <ul class="text-sm text-text-secondary space-y-1">
+        <li>• Target <strong class="text-white">60 FPS</strong> (16.67ms per frame) or 30 FPS for mobile</li>
+        <li>• Keep draw calls under <strong class="text-white">1000</strong> for most web games</li>
+        <li>• Profile on <strong class="text-white">low-end devices</strong>, not just your dev machine!</li>
+        <li>• <strong class="text-white">Measure first</strong>, optimize second — don't guess!</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Project: Scene Editor -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><circle cx="12" cy="12" r="4"/></svg>
+      Project: Scene Editor
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Experience scene graph concepts hands-on! This editor lets you:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        View and navigate the scene hierarchy
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Select objects and edit their transforms
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Add and remove objects from the scene
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Toggle object visibility
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Monitor real-time render stats
+      </li>
+    </ul>
+
+    <SceneEditor client:visible />
+  </section>
+
+  <!-- Optimization Comparison -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Before vs After: Optimization Comparison
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      See the power of optimization techniques combined! Switch between unoptimized (100 individual objects) 
+      and optimized (1000 instanced objects with LOD) to feel the difference.
+    </p>
+
+    <OptimizationComparison client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of scene graphs and optimization techniques!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="Scene Graph & Optimization Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="20-scene-graph" 
+      moduleName="Scene Graph & Optimization"
+    />
+  </section>
+
+  <!-- What's Next -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
+      Where to Go From Here
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      You've mastered the fundamentals of scene management and GPU optimization! Here's what to explore next:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Occlusion Culling:</strong> Skip objects hidden behind other objects
+      </li>
+      <li>
+        <strong class="text-white">GPU Skinning:</strong> Animate thousands of characters efficiently
+      </li>
+      <li>
+        <strong class="text-white">Compute Shaders:</strong> Offload complex calculations to the GPU
+      </li>
+      <li>
+        <strong class="text-white">Deferred Rendering:</strong> Handle many lights without killing performance
+      </li>
+    </ol>
+
+    <div class="mt-8 p-6 bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span class="text-[#00b894] font-bold">Module Complete!</span>
+      </div>
+      <p class="text-text-secondary">
+        You now understand how game engines organize and optimize 3D scenes. These techniques are used in 
+        every professional game engine — Unity, Unreal, Godot, and beyond. Apply them to make your games 
+        run buttery smooth!
+      </p>
+    </div>
+  </section>
+</ModuleLayout>

@@ -1,0 +1,779 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import PhysicsSandbox, { RigidBodiesDemo, CollisionShapesDemo, ForcesDemo, CollisionResponseDemo, JointsDemo, RaycastDemo } from '../../../components/modules/PhysicsSandbox';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 18
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'What is the difference between a dynamic and a kinematic rigid body?',
+    options: [
+      'Dynamic bodies have more polygons',
+      'Dynamic bodies are affected by forces/gravity, kinematic bodies are moved by code',
+      'Kinematic bodies are faster to simulate',
+      'There is no difference'
+    ],
+    correctIndex: 1,
+    explanation: 'Dynamic bodies respond to physics forces like gravity, collisions, and applied forces. Kinematic bodies are moved directly by code (setting position/velocity) and are not affected by forces, but can push dynamic bodies.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'Which collision shape is most efficient for a spherical object like a ball?',
+    options: [
+      'Box collider',
+      'Sphere/Ball collider',
+      'Trimesh collider',
+      'Convex hull collider'
+    ],
+    correctIndex: 1,
+    explanation: 'A sphere collider is the most efficient for round objects. It only needs a center point and radius, making collision detection very fast. Trimesh would be overkill and much slower.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does "restitution" control in physics simulation?',
+    options: [
+      'How fast objects move',
+      'How much friction objects have',
+      'How bouncy objects are (energy retained after collision)',
+      'How heavy objects are'
+    ],
+    correctIndex: 2,
+    explanation: 'Restitution (also called bounciness) determines how much kinetic energy is preserved after a collision. A value of 0 means no bounce (energy absorbed), while 1 means perfect bounce (all energy preserved).'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the purpose of "broad phase" collision detection?',
+    options: [
+      'To detect collisions with high precision',
+      'To quickly eliminate pairs of objects that cannot possibly collide',
+      'To apply collision response forces',
+      'To render collision debug shapes'
+    ],
+    correctIndex: 1,
+    explanation: 'Broad phase uses simple checks (like AABB overlap) to quickly identify pairs that MIGHT collide, discarding obvious non-collisions. This reduces the work for expensive narrow phase checks.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What type of joint allows rotation around a single axis, like a door hinge?',
+    options: [
+      'Spherical joint',
+      'Prismatic joint',
+      'Revolute (hinge) joint',
+      'Fixed joint'
+    ],
+    correctIndex: 2,
+    explanation: 'A revolute or hinge joint constrains two bodies to rotate around a single axis, exactly like a door hinge. Spherical joints allow rotation in any direction, while prismatic joints allow sliding.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the physics force application:',
+    codeTemplate: `// Apply an upward force to a rigid body
+rigidBody.addForce({ 
+  x: 0, 
+  y: ___, 
+  z: 0 
+}, true);`,
+    answers: ['100', '50', 'forceAmount', 'upwardForce'],
+    explanation: 'Forces are applied as vectors. A positive Y value pushes upward against gravity. The second parameter (true) wakes up the body if it was sleeping.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the key difference between applying a force vs an impulse?',
+    options: [
+      'Forces are stronger than impulses',
+      'Forces are applied continuously over time, impulses are instantaneous',
+      'Impulses only work on static bodies',
+      'There is no difference'
+    ],
+    correctIndex: 1,
+    explanation: 'Forces accumulate over time (think rocket engine), while impulses apply instant velocity changes (think bullet impact or jump). Force = mass × acceleration, Impulse = instant velocity change.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does raycasting in physics typically return when it hits an object?',
+    options: [
+      'Only the color of the object',
+      'The hit point, normal, distance, and the object that was hit',
+      'Just true or false',
+      'The object\'s velocity'
+    ],
+    correctIndex: 1,
+    explanation: 'Physics raycasts return rich hit information: the exact point of intersection, the surface normal at that point (for reflections/spawning), the distance along the ray, and a reference to the hit object.'
+  }
+];
+
+// Code snippets
+const codeRigidBodies = `// Three types of rigid bodies in physics engines
+
+// 1. DYNAMIC - affected by forces and collisions
+const dynamicBody = {
+  type: 'dynamic',
+  mass: 1.0,           // Has mass, affected by gravity
+  gravityScale: 1.0,   // Multiply gravity effect
+  linearDamping: 0.1,  // Air resistance (slows down)
+  angularDamping: 0.1  // Rotational resistance
+};
+
+// 2. STATIC - never moves, infinite mass
+const staticBody = {
+  type: 'fixed',       // Also called 'static'
+  // Perfect for floors, walls, terrain
+  // Very efficient - physics engine optimizes these
+};
+
+// 3. KINEMATIC - moved by code, pushes dynamic bodies
+const kinematicBody = {
+  type: 'kinematicPosition',
+  // Move with setNextKinematicTranslation()
+  // Not affected by forces or gravity
+  // Great for platforms, doors, elevators
+};
+
+// In React Three Rapier:
+<RigidBody type="dynamic" position={[0, 5, 0]}>
+  <mesh><sphereGeometry /></mesh>
+</RigidBody>`;
+
+const codeCollisionShapes = `// Collision shapes determine how objects physically interact
+
+// PRIMITIVE SHAPES (fast!)
+// Box/Cuboid - axis-aligned bounding box
+colliders="cuboid"  // Uses mesh bounding box
+
+// Sphere/Ball - fastest of all
+colliders="ball"    // Perfect for balls, particles
+
+// Capsule - cylinder with round ends
+<CapsuleCollider args={[halfHeight, radius]} />
+// Great for characters
+
+// COMPLEX SHAPES (slower but accurate)
+// Convex Hull - shrink-wrap around vertices
+colliders="hull"  
+// Good for rocks, irregular shapes
+// Must be convex (no caves/holes)
+
+// Trimesh - exact triangle mesh
+colliders="trimesh"
+// Accurate but expensive
+// Only use for static objects!
+
+// Performance ranking (fast to slow):
+// 1. Sphere  - single distance check
+// 2. Capsule - sphere + line
+// 3. Box     - 6 plane checks  
+// 4. Hull    - GJK algorithm
+// 5. Trimesh - many triangle tests`;
+
+const codeForcesImpulses = `// Forces vs Impulses - understanding the difference
+
+// FORCES - continuous, accumulate over time
+// Think: rocket engine, wind, magnetism
+function applyThrust(body, direction, strength) {
+  // Force = mass × acceleration
+  // Applied every frame, builds up velocity
+  body.addForce({
+    x: direction.x * strength,
+    y: direction.y * strength,
+    z: direction.z * strength
+  }, true); // true = wake up sleeping body
+}
+
+// IMPULSES - instantaneous velocity change
+// Think: bullet hit, explosion, jump
+function jump(body, jumpForce) {
+  // Impulse = instant velocity change
+  // Applied once, immediate effect
+  body.applyImpulse({
+    x: 0,
+    y: jumpForce,
+    z: 0
+  }, true);
+}
+
+// TORQUE - rotational force
+body.addTorque({ x: 0, y: 10, z: 0 }, true);
+
+// ANGULAR IMPULSE - instant spin
+body.applyTorqueImpulse({ x: 0, y: 5, z: 0 }, true);
+
+// Set velocity directly (use sparingly!)
+body.setLinvel({ x: 0, y: 10, z: 0 }, true);
+body.setAngvel({ x: 0, y: 3.14, z: 0 }, true);`;
+
+const codeCollisionDetection = `// Collision Detection: Broad Phase → Narrow Phase
+
+// BROAD PHASE (fast, approximate)
+// Goal: Quickly find POTENTIAL collision pairs
+// Eliminates obviously non-colliding pairs
+
+// Spatial partitioning methods:
+// - Bounding Volume Hierarchy (BVH)
+// - Spatial hash grid
+// - Sweep and prune
+
+function broadPhase(objects) {
+  const potentialPairs = [];
+  
+  // Simple AABB overlap test
+  for (let i = 0; i < objects.length; i++) {
+    for (let j = i + 1; j < objects.length; j++) {
+      if (aabbOverlap(objects[i].aabb, objects[j].aabb)) {
+        potentialPairs.push([objects[i], objects[j]]);
+      }
+    }
+  }
+  return potentialPairs;
+}
+
+// NARROW PHASE (precise, expensive)
+// Goal: Determine exact collision details
+// Only runs on pairs from broad phase
+
+function narrowPhase(pair) {
+  const [a, b] = pair;
+  
+  // Algorithms depend on shape types:
+  // - Sphere-Sphere: distance < r1 + r2
+  // - Sphere-Box: closest point on box
+  // - Box-Box: SAT (Separating Axis Theorem)
+  // - Convex-Convex: GJK + EPA algorithms
+  
+  return {
+    isColliding: true,
+    point: contactPoint,
+    normal: contactNormal,
+    depth: penetrationDepth
+  };
+}`;
+
+const codeCollisionResponse = `// Collision Response: Restitution & Friction
+
+// RESTITUTION (Bounciness)
+// Coefficient of restitution: 0 to 1+
+// - 0.0: No bounce (clay, putty)
+// - 0.5: Half energy retained (rubber)
+// - 1.0: Perfect bounce (superball)
+// - >1.0: Gains energy (unrealistic but fun!)
+
+function calculateBounceVelocity(v, normal, restitution) {
+  // Reflect velocity and scale by restitution
+  const dot = v.dot(normal);
+  return v.sub(normal.multiplyScalar((1 + restitution) * dot));
+}
+
+// Combined restitution (when two objects collide)
+// Physics engines use: max, min, multiply, or average
+const combined = Math.max(restA, restB); // Rapier uses max
+
+// FRICTION
+// Static friction: resists starting motion
+// Dynamic friction: resists ongoing motion
+// Combined: sqrt(frictionA * frictionB) or geometric mean
+
+// Material properties
+const materials = {
+  ice:    { friction: 0.03, restitution: 0.1 },
+  wood:   { friction: 0.4,  restitution: 0.3 },
+  rubber: { friction: 0.8,  restitution: 0.8 },
+  metal:  { friction: 0.3,  restitution: 0.5 },
+  bouncy: { friction: 0.3,  restitution: 0.95 }
+};`;
+
+const codeJoints = `// Joints/Constraints connect rigid bodies together
+
+// FIXED JOINT - welds two bodies together
+// No relative movement allowed
+useFixedJoint(bodyA, bodyB, [
+  [anchorA.x, anchorA.y, anchorA.z],  // Anchor on body A
+  [anchorB.x, anchorB.y, anchorB.z]   // Anchor on body B
+]);
+
+// REVOLUTE/HINGE JOINT - rotation around one axis
+// Like a door hinge or wheel axle
+useRevoluteJoint(bodyA, bodyB, [
+  [0, 0, 0],   // Anchor on A
+  [0, 1, 0],   // Anchor on B
+  [0, 0, 1]    // Rotation axis
+]);
+
+// SPHERICAL/BALL JOINT - rotation in any direction
+// Like a shoulder or hip joint
+useSphericalJoint(bodyA, bodyB, [
+  [0, 0.5, 0],  // Anchor on A
+  [0, -0.5, 0]  // Anchor on B
+]);
+
+// PRISMATIC/SLIDER JOINT - slide along an axis
+// Like a drawer or piston
+usePrismaticJoint(bodyA, bodyB, [
+  [0, 0, 0],   // Anchor on A
+  [0, 0, 0],   // Anchor on B
+  [0, 1, 0],   // Slide axis
+  [-2, 2]      // Limits [min, max]
+]);
+
+// SPRING JOINT - elastic connection
+// Useful for soft constraints, rope, cloth
+const spring = {
+  stiffness: 100,   // Spring force
+  damping: 5,       // Reduces oscillation
+  restLength: 1.0   // Natural length
+};`;
+
+const codeRaycasting = `// Raycasting: "Laser pointer" for physics world
+
+// Create a ray
+const ray = {
+  origin: camera.position,
+  direction: mouseDirection.normalize()
+};
+
+// Cast the ray into physics world
+const hit = world.castRay(
+  new rapier.Ray(ray.origin, ray.direction),
+  maxDistance,    // How far to check
+  true            // Report solid hits only
+);
+
+if (hit) {
+  // Get hit information
+  const hitPoint = ray.origin.add(
+    ray.direction.multiplyScalar(hit.timeOfImpact)
+  );
+  const hitCollider = hit.collider;
+  const hitRigidBody = hitCollider.parent();
+  
+  // Common uses:
+  
+  // 1. Object picking (click to select)
+  selectedObject = hitRigidBody;
+  
+  // 2. Shooting (apply impulse at hit)
+  hitRigidBody.applyImpulseAtPoint(
+    ray.direction.multiplyScalar(bulletForce),
+    hitPoint,
+    true
+  );
+  
+  // 3. Line-of-sight check
+  const canSeeTarget = !hit || hit.timeOfImpact > distanceToTarget;
+  
+  // 4. Ground detection
+  const ray = new rapier.Ray(position, { x: 0, y: -1, z: 0 });
+  const groundHit = world.castRay(ray, 1.1, true);
+  const isGrounded = groundHit !== null;
+}
+
+// Shape casting (sweep a shape along a path)
+const sweepHit = world.castShape(
+  position, rotation, velocity,
+  colliderShape, maxTime, true
+);`;
+---
+
+<ModuleLayout 
+  title="3D Physics"
+  moduleNumber="18"
+  projectName="Physics Sandbox"
+  prevModule={{ href: '/modules/12-raycasting/', title: 'Raycasting & Pseudo-3D' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-[#e17055]/20 to-[#6c5ce7]/20 border border-[#e17055] rounded-xl p-6 mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span class="text-[#e17055] font-bold uppercase tracking-wider text-sm">Advanced Module</span>
+      </div>
+      <p class="text-text-secondary">
+        Welcome to real-time 3D physics simulation! This module covers how physics engines simulate 
+        rigid body dynamics, collision detection, and constraint solving. You'll learn the math behind 
+        games like Portal, Angry Birds, and any game with realistic physics.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: Rigid Bodies -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+      1. Rigid Bodies
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      A <strong class="text-white">rigid body</strong> is a solid object that doesn't deform when forces are applied. 
+      Physics engines simulate three types:
+    </p>
+    
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+        <span><strong class="text-[#6c5ce7]">Dynamic</strong> — Fully simulated, affected by gravity, forces, and collisions. Most game objects use this.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#636e72] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="5" y="5"/></svg>
+        <span><strong class="text-[#636e72]">Static</strong> — Never moves, has infinite mass. Perfect for floors, walls, and terrain.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
+        <span><strong class="text-[#00b894]">Kinematic</strong> — Moved by code (animation, player input). Not affected by forces but pushes dynamic objects.</span>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeRigidBodies} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Rigid Body Types</h3>
+    <p class="text-text-secondary text-sm mb-4">
+      Watch how each body type behaves differently. The purple ball falls (dynamic), 
+      the gray block stays put (static), and the green cube moves on its own path (kinematic).
+    </p>
+    <RigidBodiesDemo client:visible />
+  </section>
+
+  <!-- Lesson 2: Collision Shapes -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      2. Collision Shapes
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Every physics object needs a <strong class="text-white">collision shape</strong> (collider) that defines 
+      its physical boundaries. The shape doesn't need to match the visual mesh exactly — simpler is faster!
+    </p>
+    
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="font-bold text-[#e17055] mb-2">Box</h4>
+        <p class="text-xs text-text-secondary">Fast, axis-aligned. Good for crates, buildings.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="font-bold text-[#00b894] mb-2">Sphere</h4>
+        <p class="text-xs text-text-secondary">Fastest! Perfect for balls, particles, projectiles.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="font-bold text-[#6c5ce7] mb-2">Capsule</h4>
+        <p class="text-xs text-text-secondary">Cylinder + hemispheres. Ideal for characters.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="font-bold text-[#fdcb6e] mb-2">Convex Hull</h4>
+        <p class="text-xs text-text-secondary">Shrink-wrap around vertices. For irregular shapes.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="font-bold text-[#74b9ff] mb-2">Trimesh</h4>
+        <p class="text-xs text-text-secondary">Exact mesh. Expensive! Only for static objects.</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeCollisionShapes} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Collision Shape Comparison</h3>
+    <p class="text-text-secondary text-sm mb-4">
+      Debug view enabled! Watch the green wireframe colliders — they're simpler than the visual meshes.
+    </p>
+    <CollisionShapesDemo client:visible />
+  </section>
+
+  <!-- Lesson 3: Forces & Impulses -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 4-4 4 4"/><path d="M12 16V8"/></svg>
+      3. Forces & Impulses
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      There are two ways to make objects move: <strong class="text-white">forces</strong> (continuous push) 
+      and <strong class="text-white">impulses</strong> (instant kick).
+    </p>
+    
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg border border-[#e17055]">
+        <h4 class="font-bold text-[#e17055] mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Force
+        </h4>
+        <p class="text-sm text-text-secondary">
+          Applied continuously over time. Accumulates velocity gradually. 
+          <br /><strong class="text-white">Examples:</strong> Rocket engine, wind, magnetism
+        </p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-[#00b894]">
+        <h4 class="font-bold text-[#00b894] mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          Impulse
+        </h4>
+        <p class="text-sm text-text-secondary">
+          Applied once, instant velocity change.
+          <br /><strong class="text-white">Examples:</strong> Jump, bullet impact, explosion
+        </p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeForcesImpulses} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Force vs Impulse</h3>
+    <p class="text-text-secondary text-sm mb-4">
+      Click the balls to apply force (orange, continuous) or impulse (green, instant).
+    </p>
+    <ForcesDemo client:visible />
+  </section>
+
+  <!-- Lesson 4: Collision Detection 3D -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+      4. Collision Detection 3D
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Checking every object against every other object is O(n²) — too slow for real games! 
+      Physics engines use a two-phase approach:
+    </p>
+    
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <h4 class="font-bold text-[#fdcb6e] mb-2">1. Broad Phase (Fast)</h4>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>• Uses simple bounding boxes (AABBs)</li>
+            <li>• Spatial partitioning (BVH, grids)</li>
+            <li>• Quickly discards non-colliding pairs</li>
+            <li>• O(n log n) with good structures</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-bold text-[#e17055] mb-2">2. Narrow Phase (Precise)</h4>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>• Only checks potential collisions</li>
+            <li>• Exact shape intersection tests</li>
+            <li>• Calculates contact points & normals</li>
+            <li>• GJK/EPA for convex shapes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeCollisionDetection} language="javascript" />
+  </section>
+
+  <!-- Lesson 5: Collision Response -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M18 9l-6-6-6 6"/><path d="M18 15l-6 6-6-6"/></svg>
+      5. Collision Response
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      When objects collide, the physics engine must decide what happens. Two key properties control this:
+    </p>
+    
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+        <span><strong class="text-[#fdcb6e]">Restitution (Bounciness)</strong> — How much kinetic energy is preserved. 0 = no bounce (clay), 1 = perfect bounce (superball).</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#74b9ff] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16"/><path d="M4 9h16"/><rect width="20" height="5" x="2" y="4" rx="2"/></svg>
+        <span><strong class="text-[#74b9ff]">Friction</strong> — Resistance to sliding. 0 = ice, 1 = sandpaper. Controls how objects slow down on surfaces.</span>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeCollisionResponse} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Bounciness Control</h3>
+    <p class="text-text-secondary text-sm mb-4">
+      Adjust the restitution slider to see how it affects the ball's bounce height!
+    </p>
+    <CollisionResponseDemo client:visible />
+  </section>
+
+  <!-- Lesson 6: Constraints & Joints -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+      6. Constraints & Joints
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Joints</strong> connect rigid bodies together, limiting their relative movement. 
+      They're essential for vehicles, ragdolls, doors, and mechanical systems.
+    </p>
+    
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-bg-secondary p-3 rounded-lg border border-border text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v6"/><path d="M12 15v6"/></svg>
+        <h4 class="font-bold text-[#e17055] text-sm">Revolute</h4>
+        <p class="text-xs text-text-secondary">Hinge (door)</p>
+      </div>
+      <div class="bg-bg-secondary p-3 rounded-lg border border-border text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        <h4 class="font-bold text-[#00b894] text-sm">Spherical</h4>
+        <p class="text-xs text-text-secondary">Ball (shoulder)</p>
+      </div>
+      <div class="bg-bg-secondary p-3 rounded-lg border border-border text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="9" width="16" height="6" rx="2"/><path d="M12 6v12"/></svg>
+        <h4 class="font-bold text-[#6c5ce7] text-sm">Prismatic</h4>
+        <p class="text-xs text-text-secondary">Slider (piston)</p>
+      </div>
+      <div class="bg-bg-secondary p-3 rounded-lg border border-border text-center">
+        <svg class="w-8 h-8 mx-auto mb-2 text-[#636e72]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/></svg>
+        <h4 class="font-bold text-[#636e72] text-sm">Fixed</h4>
+        <p class="text-xs text-text-secondary">Weld (no motion)</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeJoints} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Joint Types</h3>
+    <p class="text-text-secondary text-sm mb-4">
+      Watch how different joints constrain motion. Push the objects to see how each joint behaves!
+    </p>
+    <JointsDemo client:visible />
+  </section>
+
+  <!-- Lesson 7: Raycasting in Physics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>
+      7. Raycasting in Physics
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Physics raycasting shoots an invisible ray into the world and returns information about what it hits. 
+      It's the foundation for:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Object picking</strong> — Click to select objects in 3D</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Shooting/weapons</strong> — Hitscan bullets, laser beams</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Line-of-sight</strong> — Can enemy see player?</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Ground detection</strong> — Is character grounded?</span>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeRaycasting} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Raycast Picker</h3>
+    <p class="text-text-secondary text-sm mb-4">
+      Click anywhere in the scene to cast a ray! Red dots mark where rays hit surfaces.
+    </p>
+    <RaycastDemo client:visible />
+  </section>
+
+  <!-- Project: Physics Sandbox -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      Project: 3D Physics Sandbox
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      A complete physics playground! Experiment with all the concepts from this module:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Spawn cubes and spheres with physics
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Adjust gravity, friction, and bounciness
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Domino chain, stacking tower, ragdoll demos
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Debug view to see collision shapes
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Raycast picking mode
+      </li>
+    </ul>
+
+    <PhysicsSandbox client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of 3D physics concepts!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="3D Physics Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="18-physics3d" 
+      moduleName="3D Physics"
+    />
+  </section>
+
+  <!-- What's Next -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
+      What's Next?
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      You've mastered the fundamentals of 3D physics simulation! Here are some advanced topics to explore:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Soft Body Physics:</strong> Cloth, rope, deformable objects
+      </li>
+      <li>
+        <strong class="text-white">Fluid Simulation:</strong> SPH particles, water physics
+      </li>
+      <li>
+        <strong class="text-white">Vehicle Physics:</strong> Wheels, suspension, aerodynamics
+      </li>
+      <li>
+        <strong class="text-white">Character Controllers:</strong> Combining physics with gameplay
+      </li>
+    </ol>
+
+    <div class="mt-8 p-6 bg-gradient-to-r from-[#e17055]/20 to-[#6c5ce7]/20 border border-[#e17055] rounded-xl">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+        <span class="text-[#00b894] font-bold">Module Complete!</span>
+      </div>
+      <p class="text-text-secondary">
+        You now understand how physics engines simulate the real world in games. 
+        These concepts power everything from Angry Birds to advanced vehicle simulations!
+      </p>
+    </div>
+  </section>
+</ModuleLayout>

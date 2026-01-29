@@ -1,0 +1,930 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import LightingPlayground, { PhongVisualizer, DotProductVisualizer, SpecularDemo, ShadowMappingViz } from '../../../components/modules/LightingPlayground';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 15
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'Which light type affects all objects equally regardless of their position or orientation?',
+    options: ['Point light', 'Directional light', 'Ambient light', 'Spot light'],
+    correctIndex: 2,
+    explanation: 'Ambient light simulates indirect lighting that bounces around an environment. It illuminates all surfaces equally with no regard to normals or position, providing a base level of illumination.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In the Phong reflection model, what does the diffuse component depend on?',
+    options: [
+      'The angle between Normal and View direction',
+      'The angle between Normal and Light direction',
+      'The distance from the light source',
+      'The material color only'
+    ],
+    correctIndex: 1,
+    explanation: 'Diffuse reflection (Lambert\'s law) depends on the dot product N·L - the cosine of the angle between the surface normal and the light direction. Light hitting the surface head-on (N·L = 1) gives maximum brightness.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does the "shininess" exponent control in the Phong specular calculation?',
+    options: [
+      'The brightness of the highlight',
+      'The color of the highlight',
+      'The size/focus of the specular highlight',
+      'The position of the highlight'
+    ],
+    correctIndex: 2,
+    explanation: 'The shininess exponent (n) in (R·V)^n controls how tight or spread out the specular highlight appears. Higher values create smaller, more focused highlights (like polished metal), while lower values create broader, softer highlights.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the key difference between a point light and a directional light?',
+    options: [
+      'Point lights are brighter',
+      'Directional lights cast no shadows',
+      'Point lights radiate in all directions from a position; directional lights have parallel rays',
+      'Point lights only work in 2D'
+    ],
+    correctIndex: 2,
+    explanation: 'Point lights (like a light bulb) emit light radially from a position, with intensity falling off with distance. Directional lights (like the sun) have parallel rays with consistent direction and no position-based falloff.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the diffuse lighting calculation (Lambert\'s cosine law):',
+    codeTemplate: `function calculateDiffuse(normal, lightDir, lightColor, intensity) {
+  const NdotL = Math.max(0, ___);
+  return lightColor.map(c => c * intensity * NdotL);
+}`,
+    answers: ['dot(normal, lightDir)', 'normal.dot(lightDir)', 'dotProduct(normal, lightDir)'],
+    explanation: 'Lambert\'s law states that diffuse intensity equals N·L (the dot product of normal and light direction). We clamp to 0 because negative values (light behind surface) should give no contribution.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In shadow mapping, what is stored in the shadow map texture?',
+    options: [
+      'The color of shadowed pixels',
+      'The depth values from the light\'s perspective',
+      'A list of objects casting shadows',
+      'The normal vectors of surfaces'
+    ],
+    correctIndex: 1,
+    explanation: 'Shadow maps store depth values rendered from the light\'s point of view. When rendering the final scene, we compare each pixel\'s depth (from light\'s POV) to the shadow map - if the pixel is further, it\'s in shadow.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the purpose of ambient occlusion in global illumination?',
+    options: [
+      'To add color to dark areas',
+      'To darken areas where ambient light would be blocked (crevices, corners)',
+      'To speed up rendering',
+      'To replace shadow mapping'
+    ],
+    correctIndex: 1,
+    explanation: 'Ambient occlusion (AO) approximates how much ambient light can reach a surface point. Areas like corners, crevices, and spots between close objects are darkened because indirect light has trouble reaching them.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'When combining multiple light sources, how are their contributions typically handled?',
+    options: [
+      'Only the brightest light is used',
+      'Each light\'s contribution is added together',
+      'Lights are averaged',
+      'Only the nearest light counts'
+    ],
+    correctIndex: 1,
+    explanation: 'Light contributions are additive in nature. Each light\'s ambient, diffuse, and specular components are calculated separately and then summed to get the final pixel color. This is why scenes with multiple lights appear brighter.'
+  }
+];
+
+// Code snippets
+const codeLightTypes = `// Different light types in graphics programming
+
+// Ambient Light - uniform illumination everywhere
+function ambientLight(intensity, color) {
+    return color.map(c => c * intensity);
+}
+
+// Directional Light - parallel rays (like the sun)
+// Has direction but no position
+const sunDirection = normalize({ x: 0.5, y: -1, z: 0.3 });
+
+// Point Light - radiates from a position
+function pointLight(lightPos, surfacePos, intensity) {
+    const direction = subtract(lightPos, surfacePos);
+    const distance = magnitude(direction);
+    const attenuation = 1 / (1 + 0.1 * distance + 0.01 * distance * distance);
+    return {
+        direction: normalize(direction),
+        intensity: intensity * attenuation
+    };
+}
+
+// Spot Light - cone of light with falloff
+function spotLight(lightPos, lightDir, surfacePos, angle, penumbra) {
+    const toSurface = normalize(subtract(surfacePos, lightPos));
+    const spotCos = dot(toSurface, lightDir);
+    const cutoff = Math.cos(angle);
+    
+    if (spotCos < cutoff) return 0; // Outside cone
+    
+    // Smooth falloff at edges
+    const outerCutoff = Math.cos(angle + penumbra);
+    const intensity = (spotCos - outerCutoff) / (cutoff - outerCutoff);
+    return Math.pow(intensity, 2);
+}`;
+
+const codePhongModel = `// The Phong Reflection Model
+// Final color = Ambient + Diffuse + Specular
+
+function phongShading(
+    normal,      // Surface normal (normalized)
+    lightDir,    // Direction TO the light (normalized)
+    viewDir,     // Direction TO the camera (normalized)
+    material,    // { ambient, diffuse, specular, shininess }
+    light        // { ambient, diffuse, specular }
+) {
+    // AMBIENT: constant illumination
+    const ambient = multiply(material.ambient, light.ambient);
+    
+    // DIFFUSE: Lambert's cosine law
+    const NdotL = Math.max(0, dot(normal, lightDir));
+    const diffuse = multiply(
+        material.diffuse,
+        light.diffuse
+    ).map(c => c * NdotL);
+    
+    // SPECULAR: mirror-like reflection
+    // R = 2(N·L)N - L  (reflection of light around normal)
+    const R = subtract(
+        scale(normal, 2 * NdotL),
+        lightDir
+    );
+    const RdotV = Math.max(0, dot(R, viewDir));
+    const specular = light.specular.map(
+        c => c * material.specular * Math.pow(RdotV, material.shininess)
+    );
+    
+    // Combine all components
+    return add(ambient, add(diffuse, specular));
+}`;
+
+const codeDiffuse = `// Diffuse Lighting: Lambert's Cosine Law
+// Intensity = N · L (clamped to 0)
+
+function lambertDiffuse(normal, lightDirection) {
+    // Both vectors must be normalized!
+    
+    // Dot product gives cosine of angle between vectors
+    // When vectors are parallel: dot = 1 (full brightness)
+    // When perpendicular: dot = 0 (no light)
+    // When opposite: dot = -1 (but we clamp to 0)
+    
+    const NdotL = normal.x * lightDirection.x 
+               + normal.y * lightDirection.y 
+               + normal.z * lightDirection.z;
+    
+    // Clamp negative values - light can't go through surface
+    return Math.max(0, NdotL);
+}
+
+// Example: Surface facing up, light from 45° angle
+const normal = { x: 0, y: 1, z: 0 };  // Pointing up
+const light = normalize({ x: 0.707, y: 0.707, z: 0 });  // 45°
+const intensity = lambertDiffuse(normal, light);
+// Result: 0.707 (cos 45° ≈ 0.707)`;
+
+const codeSpecular = `// Specular Highlights: The Phong Specular Term
+// Intensity = (R · V)^n
+
+function phongSpecular(normal, lightDir, viewDir, shininess) {
+    // Calculate reflection vector
+    // R = 2(N·L)N - L
+    const NdotL = dot(normal, lightDir);
+    const reflection = {
+        x: 2 * NdotL * normal.x - lightDir.x,
+        y: 2 * NdotL * normal.y - lightDir.y,
+        z: 2 * NdotL * normal.z - lightDir.z
+    };
+    
+    // Specular intensity
+    const RdotV = Math.max(0, dot(reflection, viewDir));
+    
+    // Shininess controls highlight size
+    // Low shininess (8-16): broad, matte highlight
+    // High shininess (64-256): tight, glossy highlight
+    return Math.pow(RdotV, shininess);
+}
+
+// Blinn-Phong optimization uses half-vector instead
+function blinnPhongSpecular(normal, lightDir, viewDir, shininess) {
+    // Half-vector: halfway between light and view
+    const halfVec = normalize({
+        x: lightDir.x + viewDir.x,
+        y: lightDir.y + viewDir.y,
+        z: lightDir.z + viewDir.z
+    });
+    
+    const NdotH = Math.max(0, dot(normal, halfVec));
+    return Math.pow(NdotH, shininess * 4); // Needs higher exponent
+}`;
+
+const codeMultipleLights = `// Combining Multiple Light Sources
+// Simply add all light contributions together
+
+function shadePixel(position, normal, material, lights, cameraPos) {
+    // Start with no light
+    let finalColor = { r: 0, g: 0, b: 0 };
+    
+    // View direction (from surface to camera)
+    const viewDir = normalize(subtract(cameraPos, position));
+    
+    // Add contribution from each light
+    for (const light of lights) {
+        let lightDir, attenuation;
+        
+        // Calculate light direction and attenuation
+        if (light.type === 'directional') {
+            lightDir = normalize(negate(light.direction));
+            attenuation = 1.0;
+        } else if (light.type === 'point') {
+            const toLight = subtract(light.position, position);
+            const dist = magnitude(toLight);
+            lightDir = normalize(toLight);
+            attenuation = 1.0 / (1.0 + 0.09 * dist + 0.032 * dist * dist);
+        }
+        
+        // Calculate Phong components
+        const contribution = phongShading(
+            normal, lightDir, viewDir, material,
+            { 
+                ambient: scale(light.color, light.ambientStrength),
+                diffuse: scale(light.color, attenuation),
+                specular: scale(light.color, attenuation)
+            }
+        );
+        
+        // Add to final color (additive blending)
+        finalColor = add(finalColor, contribution);
+    }
+    
+    // Clamp final color to valid range [0, 1]
+    return {
+        r: Math.min(1, finalColor.r),
+        g: Math.min(1, finalColor.g),
+        b: Math.min(1, finalColor.b)
+    };
+}`;
+
+const codeShadowMapping = `// Shadow Mapping: Two-Pass Rendering
+
+// PASS 1: Render scene from light's perspective
+function renderShadowMap(light, scene) {
+    // Create a depth texture (shadow map)
+    const shadowMap = createDepthTexture(SHADOW_MAP_SIZE);
+    
+    // Set up light's view/projection matrices
+    const lightView = lookAt(light.position, light.target, UP);
+    const lightProjection = orthographic(-10, 10, -10, 10, 0.1, 100);
+    // Or for spot lights: perspective(light.angle, 1, 0.1, 100)
+    
+    // Render depth only
+    for (const object of scene.objects) {
+        const lightSpacePos = lightProjection * lightView * object.modelMatrix * vertex;
+        // Write depth to shadow map
+        shadowMap.write(lightSpacePos.xy, lightSpacePos.z);
+    }
+    
+    return shadowMap;
+}
+
+// PASS 2: Use shadow map when rendering final image
+function isInShadow(worldPos, shadowMap, lightMatrix) {
+    // Transform position to light's clip space
+    const lightSpacePos = lightMatrix * vec4(worldPos, 1.0);
+    
+    // Perspective divide -> NDC
+    const projCoords = lightSpacePos.xyz / lightSpacePos.w;
+    
+    // Transform to [0,1] range for texture lookup
+    const shadowCoord = projCoords * 0.5 + 0.5;
+    
+    // Get depth from shadow map
+    const closestDepth = shadowMap.sample(shadowCoord.xy);
+    
+    // Current depth (from light's perspective)
+    const currentDepth = projCoords.z;
+    
+    // Compare with bias to prevent shadow acne
+    const bias = 0.005;
+    return currentDepth - bias > closestDepth;
+}
+
+// Soft shadows with PCF (Percentage Closer Filtering)
+function softShadow(worldPos, shadowMap, lightMatrix) {
+    let shadow = 0.0;
+    const texelSize = 1.0 / shadowMap.size;
+    
+    // Sample multiple nearby points
+    for (let x = -1; x <= 1; x++) {
+        for (let y = -1; y <= 1; y++) {
+            const offset = vec2(x, y) * texelSize;
+            shadow += isInShadow(worldPos, shadowMap, lightMatrix, offset) ? 1.0 : 0.0;
+        }
+    }
+    
+    return shadow / 9.0; // Average of 9 samples
+}`;
+
+const codeGlobalIllumination = `// Global Illumination Approximations
+
+// 1. AMBIENT OCCLUSION - Darken crevices and corners
+function ambientOcclusion(position, normal, scene) {
+    let occlusion = 0;
+    const samples = 16;
+    const radius = 0.5;
+    
+    for (let i = 0; i < samples; i++) {
+        // Random direction in hemisphere around normal
+        const sampleDir = randomHemisphereDirection(normal);
+        const samplePos = add(position, scale(sampleDir, radius));
+        
+        // Check if sample point is occluded by geometry
+        if (scene.isOccluded(position, samplePos)) {
+            occlusion += 1;
+        }
+    }
+    
+    // Return visibility factor (1 = fully lit, 0 = fully occluded)
+    return 1.0 - (occlusion / samples);
+}
+
+// 2. ENVIRONMENT MAPPING - Sample from cubemap/HDR
+function environmentLight(normal, roughness, envMap) {
+    // Smooth materials: sharp reflections
+    // Rough materials: blurry reflections (use lower mip level)
+    const mipLevel = roughness * envMap.maxMipLevel;
+    
+    // Sample environment in reflection direction
+    const envColor = envMap.sampleLod(normal, mipLevel);
+    
+    return envColor;
+}
+
+// 3. SCREEN-SPACE REFLECTIONS (SSR)
+function screenSpaceReflection(position, normal, viewDir, depthBuffer, colorBuffer) {
+    // Reflect view direction around normal
+    const reflectDir = reflect(viewDir, normal);
+    
+    // Ray march through screen space
+    let rayPos = position;
+    for (let i = 0; i < 32; i++) {
+        rayPos = add(rayPos, scale(reflectDir, 0.1));
+        
+        // Project to screen space
+        const screenPos = projectToScreen(rayPos);
+        const sceneDepth = depthBuffer.sample(screenPos);
+        
+        // Check for intersection
+        if (rayPos.z < sceneDepth) {
+            return colorBuffer.sample(screenPos);
+        }
+    }
+    
+    return envMap.sample(reflectDir); // Fallback to env map
+}`;
+---
+
+<ModuleLayout 
+  title="Lighting & Shading"
+  moduleNumber="15"
+  projectName="Lighting Playground"
+  prevModule={{ href: '/modules/14-geometry/', title: '3D Geometry & Meshes' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-[#ffd43b]/20 to-[#6c5ce7]/20 border border-[#ffd43b] rounded-xl p-6 mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#ffd43b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5" />
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+        </svg>
+        <span class="text-[#ffd43b] font-bold uppercase tracking-wider text-sm">Essential 3D Graphics</span>
+      </div>
+      <p class="text-text-secondary">
+        Lighting is what brings 3D scenes to life! In this module, you'll learn the mathematical models 
+        behind realistic lighting - from the classic Phong reflection model to shadow mapping and 
+        global illumination techniques. Understanding these concepts is crucial for creating 
+        visually compelling games and graphics.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: Light Types -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41" />
+        <circle cx="12" cy="12" r="4" />
+      </svg>
+      1. Light Types
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Different types of lights serve different purposes in 3D graphics. Each has unique properties 
+      that affect how it illuminates objects in a scene:
+    </p>
+    
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-3">
+        <span class="w-4 h-4 rounded-full bg-[#4ec9b0] flex-shrink-0 mt-1"></span>
+        <div>
+          <strong class="text-white">Ambient Light</strong> — Uniform illumination that affects all surfaces equally. 
+          Simulates indirect lighting bouncing around the environment. No direction or position.
+        </div>
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="w-4 h-4 rounded-full bg-[#dcdcaa] flex-shrink-0 mt-1"></span>
+        <div>
+          <strong class="text-white">Directional Light</strong> — Parallel rays from an infinitely distant source (like the sun). 
+          Has direction but no position, consistent intensity everywhere.
+        </div>
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="w-4 h-4 rounded-full bg-[#ce9178] flex-shrink-0 mt-1"></span>
+        <div>
+          <strong class="text-white">Point Light</strong> — Emits light radially from a position (like a light bulb). 
+          Intensity falls off with distance (inverse square law or custom attenuation).
+        </div>
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="w-4 h-4 rounded-full bg-[#c586c0] flex-shrink-0 mt-1"></span>
+        <div>
+          <strong class="text-white">Spot Light</strong> — A point light with a cone of influence. 
+          Has position, direction, angle, and penumbra (soft edge falloff).
+        </div>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeLightTypes} language="javascript" />
+  </section>
+
+  <!-- Lesson 2: The Phong Model -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
+      </svg>
+      2. The Phong Reflection Model
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      The <strong class="text-white">Phong reflection model</strong> (1975) is one of the most influential 
+      lighting models in computer graphics. It breaks lighting into three additive components:
+    </p>
+    
+    <div class="bg-bg-secondary p-6 rounded-xl mb-6 border border-border">
+      <div class="text-center mb-6">
+        <div class="text-2xl font-mono text-white">
+          <span class="text-[#4ec9b0]">I</span><sub>total</sub> = 
+          <span class="text-[#4ec9b0]">I</span><sub>ambient</sub> + 
+          <span class="text-[#dcdcaa]">I</span><sub>diffuse</sub> + 
+          <span class="text-[#ce9178]">I</span><sub>specular</sub>
+        </div>
+      </div>
+      
+      <div class="grid md:grid-cols-3 gap-4 text-sm">
+        <div class="bg-[#4ec9b0]/10 rounded-lg p-4 border border-[#4ec9b0]/30">
+          <h4 class="text-[#4ec9b0] font-semibold mb-2">Ambient</h4>
+          <p class="text-text-secondary">Constant base illumination. Ensures no area is completely black.</p>
+          <code class="text-xs block mt-2">k_a × L_a</code>
+        </div>
+        <div class="bg-[#dcdcaa]/10 rounded-lg p-4 border border-[#dcdcaa]/30">
+          <h4 class="text-[#dcdcaa] font-semibold mb-2">Diffuse</h4>
+          <p class="text-text-secondary">Matte reflection based on surface angle to light.</p>
+          <code class="text-xs block mt-2">k_d × (N·L) × L_d</code>
+        </div>
+        <div class="bg-[#ce9178]/10 rounded-lg p-4 border border-[#ce9178]/30">
+          <h4 class="text-[#ce9178] font-semibold mb-2">Specular</h4>
+          <p class="text-text-secondary">Shiny highlights from direct reflection.</p>
+          <code class="text-xs block mt-2">k_s × (R·V)^n × L_s</code>
+        </div>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codePhongModel} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Phong Components Visualizer</h3>
+    <PhongVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 3: Diffuse Lighting -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2v4 M12 18v4 M4.93 4.93l2.83 2.83 M16.24 16.24l2.83 2.83 M2 12h4 M18 12h4" />
+      </svg>
+      3. Diffuse Lighting (Lambert's Law)
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Diffuse reflection models how matte surfaces scatter light equally in all directions. 
+      The intensity depends only on the angle between the surface <strong class="text-[#51cf66]">Normal (N)</strong> and 
+      the <strong class="text-[#ffd43b]">Light direction (L)</strong>.
+    </p>
+    
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <p class="text-white font-mono text-lg text-center mb-2">
+        I<sub>diffuse</sub> = max(0, <span class="text-[#51cf66]">N</span> · <span class="text-[#ffd43b]">L</span>)
+      </p>
+      <p class="text-sm text-text-secondary text-center">
+        The dot product gives the cosine of the angle between vectors
+      </p>
+    </div>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>When N and L are parallel: <code class="bg-black/30 px-1 rounded">N·L = 1</code> (maximum brightness)</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>When perpendicular: <code class="bg-black/30 px-1 rounded">N·L = 0</code> (grazing angle, no light)</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>When opposite (light behind): clamped to 0 (no negative light!)</span>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeDiffuse} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: N·L Dot Product Visualizer</h3>
+    <DotProductVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 4: Specular Highlights -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+      4. Specular Highlights
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Specular reflection creates the shiny highlights you see on glossy surfaces. Unlike diffuse, 
+      it depends on the <strong class="text-[#339af0]">view direction (V)</strong> — you only see the highlight 
+      when looking at the right angle.
+    </p>
+    
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <p class="text-white font-mono text-lg text-center mb-2">
+        I<sub>specular</sub> = (<span class="text-[#ff6b6b]">R</span> · <span class="text-[#339af0]">V</span>)<sup class="text-[#c586c0]">n</sup>
+      </p>
+      <p class="text-sm text-text-secondary text-center">
+        R = reflection of light around normal, n = shininess exponent
+      </p>
+    </div>
+    
+    <p class="text-text-secondary mb-6">
+      The <strong class="text-[#c586c0]">shininess exponent (n)</strong> controls how focused the highlight is:
+    </p>
+    
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-[#1e1e2e] rounded-lg p-3 text-center border border-[#2a2a3a]">
+        <div class="text-2xl font-bold text-[#c586c0] mb-1">8</div>
+        <div class="text-xs text-text-secondary">Rubber</div>
+      </div>
+      <div class="bg-[#1e1e2e] rounded-lg p-3 text-center border border-[#2a2a3a]">
+        <div class="text-2xl font-bold text-[#c586c0] mb-1">32</div>
+        <div class="text-xs text-text-secondary">Plastic</div>
+      </div>
+      <div class="bg-[#1e1e2e] rounded-lg p-3 text-center border border-[#2a2a3a]">
+        <div class="text-2xl font-bold text-[#c586c0] mb-1">64</div>
+        <div class="text-xs text-text-secondary">Metal</div>
+      </div>
+      <div class="bg-[#1e1e2e] rounded-lg p-3 text-center border border-[#2a2a3a]">
+        <div class="text-2xl font-bold text-[#c586c0] mb-1">256</div>
+        <div class="text-xs text-text-secondary">Mirror</div>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeSpecular} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Specular Falloff Curve</h3>
+    <SpecularDemo client:visible />
+  </section>
+
+  <!-- Lesson 5: Multiple Lights -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18h6" />
+        <path d="M10 22h4" />
+        <path d="m15.09 14 .3-1.5a5 5 0 1 0-6.78 0l.3 1.5" />
+        <circle cx="12" cy="5" r="1" />
+      </svg>
+      5. Multiple Light Sources
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Real scenes have multiple lights. The key insight is that <strong class="text-white">light is additive</strong> — 
+      we calculate each light's contribution separately and sum them together.
+    </p>
+    
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <p class="text-white font-mono text-center">
+        I<sub>final</sub> = Σ (I<sub>ambient<span class="text-xs">_i</span></sub> + I<sub>diffuse<span class="text-xs">_i</span></sub> + I<sub>specular<span class="text-xs">_i</span></sub>)
+      </p>
+    </div>
+    
+    <p class="text-text-secondary mb-6">
+      Important considerations when combining lights:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-4 h-4 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Each light has its own color, intensity, and position</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-4 h-4 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Point/spot lights need distance attenuation calculations</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-4 h-4 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Final color should be clamped to [0, 1] to prevent overflow</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-4 h-4 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Performance: More lights = more calculations per pixel</span>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeMultipleLights} language="javascript" />
+  </section>
+
+  <!-- Lesson 6: Shadows -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+        <circle cx="12" cy="12" r="4" />
+      </svg>
+      6. Shadow Mapping
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Shadow mapping</strong> is the most common technique for real-time shadows. 
+      It's a two-pass algorithm:
+    </p>
+    
+    <div class="space-y-4 mb-6">
+      <div class="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a]">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="w-6 h-6 rounded-full bg-[#ffd43b] text-black flex items-center justify-center font-bold text-sm">1</span>
+          <h4 class="text-white font-semibold">Render from Light's View</h4>
+        </div>
+        <p class="text-text-secondary text-sm ml-9">
+          Render the scene from the light's perspective into a depth texture (shadow map). 
+          Each pixel stores the distance to the closest surface.
+        </p>
+      </div>
+      
+      <div class="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a]">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="w-6 h-6 rounded-full bg-[#6c5ce7] text-white flex items-center justify-center font-bold text-sm">2</span>
+          <h4 class="text-white font-semibold">Compare Depths</h4>
+        </div>
+        <p class="text-text-secondary text-sm ml-9">
+          When rendering from camera, transform each point to light space and compare its depth 
+          to the shadow map. If it's further than the stored depth, it's in shadow!
+        </p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeShadowMapping} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Shadow Mapping Concept</h3>
+    <ShadowMappingViz client:visible />
+    
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-lg p-4 mt-6">
+      <h4 class="text-[#e17055] font-semibold mb-2 flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <path d="M12 9v4 M12 17h.01" />
+        </svg>
+        Common Issues
+      </h4>
+      <ul class="text-sm text-text-secondary space-y-1">
+        <li><strong>Shadow acne:</strong> Self-shadowing artifacts. Fix with depth bias.</li>
+        <li><strong>Peter panning:</strong> Shadows detach from objects. Don't use too much bias!</li>
+        <li><strong>Aliasing:</strong> Jagged edges. Use PCF or variance shadow maps.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Lesson 7: Global Illumination -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+        <path d="M2 12h20" />
+      </svg>
+      7. Global Illumination (Intro)
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Real light bounces multiple times before reaching your eye. <strong class="text-white">Global illumination (GI)</strong> 
+      simulates this indirect lighting for more realistic scenes. Full GI is expensive, but we have 
+      clever approximations:
+    </p>
+    
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a]">
+        <h4 class="text-white font-semibold mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#4ec9b0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+          Ambient Occlusion (AO)
+        </h4>
+        <p class="text-text-secondary text-sm">
+          Darkens crevices and corners where ambient light would be blocked. 
+          Can be screen-space (SSAO) or baked into textures.
+        </p>
+      </div>
+      
+      <div class="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a]">
+        <h4 class="text-white font-semibold mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#339af0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="M3 9h18 M9 3v18" />
+          </svg>
+          Environment Maps
+        </h4>
+        <p class="text-text-secondary text-sm">
+          Cubemap textures that provide realistic reflections and ambient lighting 
+          from the surrounding environment (IBL - Image-Based Lighting).
+        </p>
+      </div>
+      
+      <div class="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a]">
+        <h4 class="text-white font-semibold mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#ffd43b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+            <circle cx="12" cy="12" r="4" />
+          </svg>
+          Light Probes
+        </h4>
+        <p class="text-text-secondary text-sm">
+          Pre-computed spherical harmonics at strategic positions that approximate 
+          local indirect lighting for dynamic objects.
+        </p>
+      </div>
+      
+      <div class="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a]">
+        <h4 class="text-white font-semibold mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m9 9 5 12 1.8-5.2L21 14Z" />
+            <path d="M7.2 2.2 8 5.1" />
+            <path d="m5.1 8-2.9-.8" />
+            <path d="M14 4.1 12 6" />
+            <path d="m6 12-1.9 2" />
+          </svg>
+          Screen-Space Reflections
+        </h4>
+        <p class="text-text-secondary text-sm">
+          Ray march through the depth buffer to find reflections. 
+          Limited to on-screen geometry but very efficient.
+        </p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeGlobalIllumination} language="javascript" />
+  </section>
+
+  <!-- Project: Lighting Playground -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+        <path d="M9 18h6" />
+        <path d="M10 22h4" />
+      </svg>
+      Project: Lighting Playground
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Experiment with everything you've learned! Add lights, adjust materials, toggle shadows, 
+      and see how the Phong components combine in real-time.
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Add/remove ambient, directional, point, and spot lights
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Control light color, intensity, and position
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Toggle between combined view and individual components
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Adjust material shininess, roughness, and metalness
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Real-time shadow toggle with shadow-casting lights
+      </li>
+    </ul>
+
+    <LightingPlayground client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>
+      </svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of lighting and shading concepts!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="Lighting & Shading Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="15-lighting" 
+      moduleName="Lighting & Shading"
+    />
+  </section>
+
+  <!-- What's Next -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 17 5-5-5-5"/>
+        <path d="m13 17 5-5-5-5"/>
+      </svg>
+      Going Further
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      You now understand the fundamentals of lighting in 3D graphics! Here are some advanced topics to explore:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">PBR (Physically Based Rendering):</strong> Modern materials with 
+        energy conservation, Fresnel effects, and microfacet theory
+      </li>
+      <li>
+        <strong class="text-white">Ray Tracing:</strong> Hardware-accelerated realistic lighting 
+        with true reflections, refractions, and global illumination
+      </li>
+      <li>
+        <strong class="text-white">Deferred Rendering:</strong> Efficient multi-light rendering by 
+        separating geometry and lighting passes
+      </li>
+      <li>
+        <strong class="text-white">Subsurface Scattering:</strong> Light penetrating translucent 
+        materials like skin, wax, and leaves
+      </li>
+    </ol>
+
+    <div class="mt-8 p-6 bg-gradient-to-r from-[#ffd43b]/20 to-[#6c5ce7]/20 border border-[#ffd43b] rounded-xl">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#ffd43b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          <circle cx="12" cy="12" r="4"/>
+        </svg>
+        <span class="text-[#ffd43b] font-bold">Lighting Mastered!</span>
+      </div>
+      <p class="text-text-secondary">
+        Understanding lighting transforms your 3D scenes from flat and lifeless to rich and immersive. 
+        Keep experimenting with the playground and see how professionals light their game worlds!
+      </p>
+    </div>
+  </section>
+</ModuleLayout>

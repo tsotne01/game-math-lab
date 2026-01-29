@@ -1,0 +1,805 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import ShaderPlayground, { PipelineVisualizer, UVVisualizer, NormalVisualizer, FresnelDemo } from '../../../components/modules/ShaderPlayground';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 19
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'What is the primary purpose of a vertex shader?',
+    options: [
+      'To calculate the final pixel color',
+      'To transform vertex positions and pass data to the fragment shader',
+      'To load textures from disk',
+      'To create new vertices dynamically'
+    ],
+    correctIndex: 1,
+    explanation: 'The vertex shader transforms each vertex position (typically using MVP matrices) and prepares data like UVs and normals to pass to the fragment shader via varyings.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does gl_FragColor represent in a fragment shader?',
+    options: [
+      'The vertex position in clip space',
+      'The UV coordinates of the fragment',
+      'The final output color of the pixel (RGBA)',
+      'The normal direction of the surface'
+    ],
+    correctIndex: 2,
+    explanation: 'gl_FragColor is the output variable where you write the final RGBA color that will be displayed on screen for that pixel/fragment.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What type of variable is used to pass data FROM the vertex shader TO the fragment shader?',
+    options: [
+      'uniform',
+      'attribute',
+      'varying',
+      'const'
+    ],
+    correctIndex: 2,
+    explanation: 'Varyings are interpolated across the primitive (triangle) and passed from vertex shader to fragment shader. In modern GLSL, they use "in/out" keywords.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is a uniform variable in GLSL?',
+    options: [
+      'A variable that changes per vertex',
+      'A variable that changes per fragment',
+      'A constant value sent from CPU that stays same for all vertices/fragments in a draw call',
+      'A variable for storing texture data'
+    ],
+    correctIndex: 2,
+    explanation: 'Uniforms are values set from JavaScript/CPU code that remain constant for all vertices and fragments during a single draw call. Examples: time, camera position, colors.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the Fresnel effect commonly used for in shaders?',
+    options: [
+      'Creating shadows',
+      'Edge glow effects based on view angle',
+      'Increasing frame rate',
+      'Loading textures faster'
+    ],
+    correctIndex: 1,
+    explanation: 'The Fresnel effect makes surfaces appear brighter at glancing angles (edges). It\'s used for shield effects, holograms, realistic materials, and rim lighting.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the normal-to-color conversion in a fragment shader:',
+    codeTemplate: `// Convert normal (-1 to 1) to color (0 to 1)
+vec3 color = vNormal * ___ + ___;`,
+    answers: ['0.5', '0.5'],
+    explanation: 'Normals range from -1 to 1, but colors need 0 to 1. Multiplying by 0.5 and adding 0.5 remaps the range: (-1 * 0.5 + 0.5 = 0) and (1 * 0.5 + 0.5 = 1).'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does the "discard" keyword do in a fragment shader?',
+    options: [
+      'Deletes the entire mesh',
+      'Skips the current vertex',
+      'Prevents the current fragment from being drawn (transparent pixel)',
+      'Resets all uniforms to default'
+    ],
+    correctIndex: 2,
+    explanation: 'The "discard" keyword in a fragment shader prevents that fragment from being written to the framebuffer, effectively making it invisible. Used for dissolve effects, alpha cutouts, etc.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In the GPU rendering pipeline, what happens AFTER the vertex shader but BEFORE the fragment shader?',
+    options: [
+      'Texture loading',
+      'Rasterization (converting triangles to fragments)',
+      'Post-processing',
+      'Shadow calculation'
+    ],
+    correctIndex: 1,
+    explanation: 'After vertices are transformed, the rasterizer converts triangles into fragments (potential pixels). It interpolates varying values and determines which pixels each triangle covers.'
+  }
+];
+
+// Code snippets
+const codeGLSLTypes = `// GLSL Basic Types
+float x = 1.0;           // Single decimal number
+int i = 42;              // Integer
+bool flag = true;        // Boolean
+
+// Vector Types (2, 3, or 4 components)
+vec2 uv = vec2(0.5, 0.5);
+vec3 position = vec3(1.0, 2.0, 3.0);
+vec4 color = vec4(1.0, 0.0, 0.0, 1.0);  // RGBA
+
+// Accessing components (multiple ways!)
+float r = color.r;       // color components: r, g, b, a
+float x = position.x;    // spatial: x, y, z, w
+float s = uv.s;          // texture: s, t, p, q
+
+// Swizzling - reorder or duplicate components
+vec3 rgb = color.rgb;           // vec4 → vec3
+vec3 bgr = color.bgr;           // swap order
+vec4 rrgg = color.rrgg;         // duplicate
+
+// Matrix Types
+mat2 m2;                 // 2x2 matrix
+mat3 m3;                 // 3x3 matrix (normals)
+mat4 m4;                 // 4x4 matrix (transforms)`;
+
+const codeGLSLFunctions = `// Built-in GLSL Functions
+
+// Math
+float a = abs(-5.0);           // 5.0
+float s = sign(-3.0);          // -1.0
+float f = floor(3.7);          // 3.0
+float c = ceil(3.2);           // 4.0
+float fr = fract(3.7);         // 0.7
+float m = mod(7.0, 3.0);       // 1.0
+float mn = min(a, b);
+float mx = max(a, b);
+float cl = clamp(x, 0.0, 1.0); // keep x in range
+
+// Interpolation
+float l = mix(a, b, 0.5);      // lerp: 50% between a and b
+float st = step(0.5, x);       // 0 if x < 0.5, else 1
+float sm = smoothstep(0.0, 1.0, x);  // smooth 0→1
+
+// Trigonometry
+float si = sin(angle);
+float co = cos(angle);
+float ta = tan(angle);
+float as = asin(x);
+float ac = acos(x);
+
+// Vector Operations
+float len = length(v);         // magnitude
+vec3 n = normalize(v);         // unit vector
+float d = dot(a, b);           // dot product
+vec3 c = cross(a, b);          // cross product (3D only)
+float dist = distance(a, b);   // distance between points
+vec3 r = reflect(I, N);        // reflection vector
+vec3 rf = refract(I, N, eta);  // refraction`;
+
+const codeVertexBasic = `// === VERTEX SHADER ===
+// Runs once per vertex in your mesh
+
+// INPUTS (attributes) - per-vertex data
+attribute vec3 position;    // Vertex position (local space)
+attribute vec3 normal;      // Surface normal
+attribute vec2 uv;          // Texture coordinates
+
+// OUTPUTS (varyings) - passed to fragment shader
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+// UNIFORMS - same for all vertices
+uniform mat4 modelMatrix;       // Local → World
+uniform mat4 viewMatrix;        // World → Camera
+uniform mat4 projectionMatrix;  // Camera → Clip (perspective)
+uniform mat3 normalMatrix;      // For transforming normals
+
+void main() {
+    // Pass data to fragment shader
+    vUv = uv;
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+    
+    // Transform vertex to clip space (REQUIRED!)
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+    
+    // Three.js shorthand:
+    // gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+const codeFragmentBasic = `// === FRAGMENT SHADER ===
+// Runs once per pixel/fragment
+
+// INPUTS (varyings) - interpolated from vertices
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+// UNIFORMS
+uniform float uTime;
+uniform vec3 uColor;
+uniform sampler2D uTexture;
+
+void main() {
+    // Sample a texture
+    vec4 texColor = texture2D(uTexture, vUv);
+    
+    // Basic diffuse lighting
+    vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+    float diffuse = max(dot(vNormal, lightDir), 0.0);
+    
+    // Combine color, texture, and lighting
+    vec3 finalColor = uColor * texColor.rgb * diffuse;
+    
+    // OUTPUT: Final pixel color (RGBA)
+    gl_FragColor = vec4(finalColor, 1.0);
+}`;
+
+const codeUniformsVaryings = `// === CPU/JavaScript Side (Three.js) ===
+const material = new THREE.ShaderMaterial({
+    uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color('#ff0000') },
+        uMouse: { value: new THREE.Vector2(0, 0) },
+        uTexture: { value: myTexture }
+    },
+    vertexShader: vertexCode,
+    fragmentShader: fragmentCode
+});
+
+// Update uniforms in animation loop
+function animate() {
+    material.uniforms.uTime.value = performance.now() * 0.001;
+    material.uniforms.uMouse.value.set(mouseX, mouseY);
+}
+
+// === GPU/GLSL Side ===
+
+// Uniform: Same value for ALL vertices/fragments
+uniform float uTime;
+uniform vec3 uColor;
+
+// Attribute: Different per vertex (position, normal, uv)
+attribute vec3 position;
+
+// Varying: Interpolated across triangle surface
+// Vertex shader WRITES, Fragment shader READS
+varying vec2 vUv;
+varying vec3 vNormal;
+
+// In vertex shader:
+vUv = uv;  // Write
+
+// In fragment shader:
+vec2 coords = vUv;  // Read (interpolated!)`;
+
+const codeToonShader = `// TOON / CEL SHADING
+// Quantize lighting into discrete steps
+
+varying vec3 vNormal;
+
+uniform vec3 uColor;
+uniform vec3 uLightDir;
+uniform float uSteps;  // e.g., 4.0
+
+void main() {
+    // Calculate basic diffuse
+    float NdotL = dot(normalize(vNormal), normalize(uLightDir));
+    
+    // Quantize into steps (the toon effect!)
+    float intensity = floor(NdotL * uSteps) / uSteps;
+    intensity = max(0.2, intensity);  // Ambient minimum
+    
+    vec3 color = uColor * intensity;
+    gl_FragColor = vec4(color, 1.0);
+}`;
+
+const codeDissolveShader = `// DISSOLVE EFFECT
+// Use noise to create burn-away effect
+
+varying vec3 vPosition;
+
+uniform float uDissolve;    // 0 = solid, 1 = gone
+uniform vec3 uColor;
+uniform vec3 uEdgeColor;
+uniform float uEdgeWidth;
+
+// Simple noise function
+float noise(vec3 p) {
+    return fract(sin(dot(p, vec3(12.9898, 78.233, 45.543))) * 43758.5453);
+}
+
+void main() {
+    float n = noise(vPosition * 5.0);
+    
+    // Discard pixels below threshold
+    if (n < uDissolve) {
+        discard;  // Don't draw this pixel!
+    }
+    
+    // Color the edge
+    float edge = smoothstep(uDissolve, uDissolve + uEdgeWidth, n);
+    vec3 color = mix(uEdgeColor, uColor, edge);
+    
+    gl_FragColor = vec4(color, 1.0);
+}`;
+
+const codeWaveShader = `// WAVE DISPLACEMENT
+// Animate vertices in the vertex shader
+
+uniform float uTime;
+uniform float uAmplitude;
+uniform float uFrequency;
+
+varying float vWave;
+
+void main() {
+    // Calculate wave offset
+    float wave = sin(position.x * uFrequency + uTime) 
+               * sin(position.z * uFrequency + uTime) 
+               * uAmplitude;
+    
+    // Displace vertex along normal
+    vec3 newPosition = position + normal * wave;
+    
+    // Pass wave value for coloring
+    vWave = wave;
+    
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+}
+
+// Fragment shader can use vWave for coloring:
+// vec3 color = mix(valleyColor, peakColor, vWave + 0.5);`;
+
+const codePostProcessing = `// POST-PROCESSING BASICS
+// Render scene to texture, then process it
+
+// Full-screen quad vertex shader
+varying vec2 vUv;
+void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+}
+
+// === BLUR EFFECT ===
+uniform sampler2D uTexture;
+uniform vec2 uResolution;
+
+void main() {
+    vec2 texel = 1.0 / uResolution;
+    vec4 color = vec4(0.0);
+    
+    // Sample surrounding pixels
+    for (int x = -2; x <= 2; x++) {
+        for (int y = -2; y <= 2; y++) {
+            color += texture2D(uTexture, vUv + vec2(x, y) * texel);
+        }
+    }
+    gl_FragColor = color / 25.0;  // Average
+}
+
+// === VIGNETTE ===
+void main() {
+    vec4 color = texture2D(uTexture, vUv);
+    float dist = distance(vUv, vec2(0.5));
+    float vignette = smoothstep(0.7, 0.4, dist);
+    gl_FragColor = color * vignette;
+}
+
+// === COLOR GRADING ===
+void main() {
+    vec4 color = texture2D(uTexture, vUv);
+    
+    // Increase contrast
+    color.rgb = (color.rgb - 0.5) * 1.2 + 0.5;
+    
+    // Color tint
+    color.rgb *= vec3(1.0, 0.95, 0.9);  // Warm tint
+    
+    gl_FragColor = color;
+}`;
+---
+
+<ModuleLayout 
+  title="Shaders & GLSL"
+  moduleNumber="19"
+  projectName="Shader Playground"
+  prevModule={{ href: '/modules/12-raycasting/', title: 'Raycasting & Pseudo-3D' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl p-6 mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+        <span class="text-accent font-bold uppercase tracking-wider text-sm">GPU Programming</span>
+      </div>
+      <p class="text-text-secondary">
+        Shaders are programs that run on your GPU, processing millions of vertices and pixels in parallel. 
+        They're the secret behind every visual effect in modern games — from realistic lighting to stylized 
+        cel-shading, dissolve effects, and more. Master GLSL and unlock unlimited creative control!
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: GPU Pipeline -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="20" height="14" x="2" y="3" rx="2"/>
+        <line x1="8" x2="16" y1="21" y2="21"/>
+        <line x1="12" x2="12" y1="17" y2="21"/>
+      </svg>
+      1. The GPU Rendering Pipeline
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      When you draw a 3D object, data flows through a pipeline on the GPU. The two programmable stages are:
+    </p>
+    
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-3">
+        <span class="w-8 h-8 rounded-full bg-[#6c5ce7] flex items-center justify-center flex-shrink-0 font-bold text-black">1</span>
+        <div>
+          <strong class="text-[#6c5ce7]">Vertex Shader</strong> — Runs once per vertex. Transforms positions 
+          from local space to clip space. Prepares data for the fragment shader.
+        </div>
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="w-8 h-8 rounded-full bg-[#fdcb6e] flex items-center justify-center flex-shrink-0 font-bold text-black">2</span>
+        <div>
+          <strong class="text-[#fdcb6e]">Rasterization</strong> (Hardware) — Converts triangles into 
+          fragments (potential pixels). Interpolates data across the triangle surface.
+        </div>
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="w-8 h-8 rounded-full bg-[#00b894] flex items-center justify-center flex-shrink-0 font-bold text-black">3</span>
+        <div>
+          <strong class="text-[#00b894]">Fragment Shader</strong> — Runs once per pixel. Calculates 
+          the final color using lighting, textures, and effects.
+        </div>
+      </li>
+    </ul>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Pipeline Visualizer</h3>
+    <PipelineVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 2: GLSL Basics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      2. GLSL Basics
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      GLSL (OpenGL Shading Language) is a C-like language for writing shaders. It has built-in types 
+      for vectors, matrices, and textures — perfect for graphics programming!
+    </p>
+
+    <h3 class="text-lg font-semibold text-white mt-6 mb-3">Data Types</h3>
+    <CodeBlock client:load code={codeGLSLTypes} language="glsl" />
+
+    <h3 class="text-lg font-semibold text-white mt-8 mb-3">Built-in Functions</h3>
+    <p class="text-text-secondary mb-4">
+      GLSL provides optimized functions that run directly on GPU hardware:
+    </p>
+    <CodeBlock client:load code={codeGLSLFunctions} language="glsl" />
+  </section>
+
+  <!-- Lesson 3: Vertex Shaders -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="1"/>
+        <circle cx="12" cy="5" r="1"/>
+        <circle cx="19" cy="12" r="1"/>
+        <circle cx="5" cy="12" r="1"/>
+        <circle cx="12" cy="19" r="1"/>
+        <path d="m12 6 0 5"/>
+        <path d="m12 13 0 5"/>
+        <path d="m6 12 5 0"/>
+        <path d="m13 12 5 0"/>
+      </svg>
+      3. Vertex Shaders
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      The vertex shader's main job is to transform vertex positions and pass data to the fragment shader. 
+      Every vertex shader must set <code class="bg-bg-secondary px-2 py-0.5 rounded">gl_Position</code>.
+    </p>
+
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <p class="text-sm text-text-secondary mb-2">Key responsibilities:</p>
+      <ul class="text-sm space-y-1">
+        <li class="text-accent flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Transform position: local → world → view → clip space
+        </li>
+        <li class="text-accent flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Transform normals using the normal matrix
+        </li>
+        <li class="text-accent flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Pass UVs, colors, and other data to fragment shader
+        </li>
+        <li class="text-accent flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Optional: Vertex displacement (waves, morphing)
+        </li>
+      </ul>
+    </div>
+
+    <CodeBlock client:load code={codeVertexBasic} language="glsl" />
+  </section>
+
+  <!-- Lesson 4: Fragment Shaders -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      4. Fragment Shaders
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      The fragment shader calculates the final color for each pixel. This is where lighting, 
+      texturing, and visual effects happen. Set <code class="bg-bg-secondary px-2 py-0.5 rounded">gl_FragColor</code> to output.
+    </p>
+
+    <CodeBlock client:load code={codeFragmentBasic} language="glsl" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: UV Coordinate Visualizer</h3>
+    <UVVisualizer client:visible />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Normal Visualizer</h3>
+    <NormalVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 5: Uniforms & Varyings -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v18"/>
+        <path d="M3 12h18"/>
+        <circle cx="12" cy="12" r="2"/>
+      </svg>
+      5. Uniforms & Varyings
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Understanding how data flows between CPU and GPU is crucial for interactive shaders:
+    </p>
+    
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg border border-[#ff6b6b]">
+        <h4 class="font-bold text-[#ff6b6b] mb-2">Attributes</h4>
+        <p class="text-sm text-text-secondary">Per-vertex data (position, normal, uv). Set automatically by Three.js.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-[#6c5ce7]">
+        <h4 class="font-bold text-[#6c5ce7] mb-2">Uniforms</h4>
+        <p class="text-sm text-text-secondary">Global values from CPU (time, colors, textures). Same for all vertices/fragments.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-[#00b894]">
+        <h4 class="font-bold text-[#00b894] mb-2">Varyings</h4>
+        <p class="text-sm text-text-secondary">Data passed from vertex to fragment shader. Automatically interpolated!</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeUniformsVaryings} language="glsl" />
+  </section>
+
+  <!-- Lesson 6: Common Shader Effects -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+      </svg>
+      6. Common Shader Effects
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Here are some popular shader techniques used in games:
+    </p>
+
+    <h3 class="text-lg font-semibold text-white mt-6 mb-3">Toon / Cel Shading</h3>
+    <p class="text-text-secondary mb-4">
+      Quantize lighting into discrete bands for a cartoon look:
+    </p>
+    <CodeBlock client:load code={codeToonShader} language="glsl" />
+
+    <h3 class="text-lg font-semibold text-white mt-8 mb-3">Dissolve Effect</h3>
+    <p class="text-text-secondary mb-4">
+      Use noise and the <code class="bg-bg-secondary px-1 rounded">discard</code> keyword for burn-away effects:
+    </p>
+    <CodeBlock client:load code={codeDissolveShader} language="glsl" />
+
+    <h3 class="text-lg font-semibold text-white mt-8 mb-3">Wave Displacement</h3>
+    <p class="text-text-secondary mb-4">
+      Modify vertex positions in the vertex shader for animated surfaces:
+    </p>
+    <CodeBlock client:load code={codeWaveShader} language="glsl" />
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Fresnel Effect Demo</h3>
+    <FresnelDemo client:visible />
+  </section>
+
+  <!-- Lesson 7: Post-Processing -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9"/>
+        <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>
+      </svg>
+      7. Post-Processing
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Post-processing effects are applied after the scene is rendered to a texture. They process 
+      the entire image to add effects like blur, bloom, color grading, and more.
+    </p>
+
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <h4 class="font-semibold text-white mb-2">How Post-Processing Works:</h4>
+      <ol class="list-decimal list-inside text-sm text-text-secondary space-y-1">
+        <li>Render your 3D scene to a texture (render target)</li>
+        <li>Draw a full-screen quad with that texture</li>
+        <li>Apply shader effects to modify every pixel</li>
+        <li>Chain multiple effects together</li>
+      </ol>
+    </div>
+
+    <CodeBlock client:load code={codePostProcessing} language="glsl" />
+
+    <div class="grid md:grid-cols-2 gap-4 mt-6">
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+          Common Effects
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Blur (Gaussian, Box, Motion)</li>
+          <li>• Bloom (glow on bright areas)</li>
+          <li>• Vignette (dark corners)</li>
+          <li>• Chromatic Aberration</li>
+          <li>• Film Grain / Noise</li>
+        </ul>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21"/></svg>
+          Color Grading
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Contrast / Brightness</li>
+          <li>• Saturation adjustment</li>
+          <li>• Color tinting</li>
+          <li>• Tone mapping (HDR)</li>
+          <li>• LUT (look-up tables)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Project: Shader Playground -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+        <polyline points="2 17 12 22 22 17"/>
+        <polyline points="2 12 12 17 22 12"/>
+      </svg>
+      Project: Shader Playground
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Experiment with shaders in real-time! Edit vertex and fragment shaders, adjust uniforms, 
+      and see your changes instantly. Start with a preset and modify it to learn.
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Live code editing with error highlighting
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        10 preset shaders: Basic, Toon, Hologram, Fresnel, Wave, Dissolve, Fire, Water...
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Uniform controls (sliders, color pickers)
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Multiple geometries: Sphere, Box, Torus, Plane, Cylinder
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Built-in time and mouse uniforms for animation
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Export your shader code
+      </li>
+    </ul>
+
+    <ShaderPlayground client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>
+      </svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of shaders and GLSL!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="Shaders & GLSL Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="19-shaders" 
+      moduleName="Shaders & GLSL"
+    />
+  </section>
+
+  <!-- What's Next -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 17 5-5-5-5"/>
+        <path d="m13 17 5-5-5-5"/>
+      </svg>
+      Where to Go From Here
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      You've learned the fundamentals of GPU programming! Here's where to continue:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Shadertoy:</strong> Explore thousands of creative shaders and learn from the community
+      </li>
+      <li>
+        <strong class="text-white">The Book of Shaders:</strong> Deep dive into fragment shaders and generative art
+      </li>
+      <li>
+        <strong class="text-white">Compute Shaders:</strong> Use the GPU for general-purpose computation (GPGPU)
+      </li>
+      <li>
+        <strong class="text-white">PBR Materials:</strong> Learn physically-based rendering for realistic graphics
+      </li>
+      <li>
+        <strong class="text-white">Ray Marching:</strong> Create complex 3D scenes using signed distance functions
+      </li>
+    </ol>
+
+    <div class="mt-8 p-6 bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+        <span class="text-accent font-bold">Shader Mastery!</span>
+      </div>
+      <p class="text-text-secondary">
+        You now understand how modern graphics work at the GPU level. Every game you play, 
+        every visual effect you see — it's all shaders. Keep experimenting, and remember: 
+        the best way to learn is to break things and fix them!
+      </p>
+    </div>
+  </section>
+</ModuleLayout>
