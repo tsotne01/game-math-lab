@@ -1,0 +1,585 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import Platformer, { AABBVisualizer, CircleVisualizer, SweptCollisionVisualizer } from '../../../components/modules/Platformer';
+import Quiz from '../../../components/lessons/Quiz';
+
+// Code snippets
+const codeAABB = `// AABB vs AABB collision detection
+// Two axis-aligned boxes collide if they overlap on BOTH axes
+
+function aabbVsAabb(a, b) {
+    return (
+        a.x < b.x + b.width &&   // A's left < B's right
+        a.x + a.width > b.x &&   // A's right > B's left
+        a.y < b.y + b.height &&  // A's top < B's bottom
+        a.y + a.height > b.y     // A's bottom > B's top
+    );
+}
+
+// Simple and fast - O(1) time complexity!
+// Works for rectangles aligned to X/Y axes only`;
+
+const codeAABBOverlap = `// Calculate overlap for collision resolution
+function getAabbOverlap(a, b) {
+    const overlapX = Math.min(a.x + a.width, b.x + b.width) 
+                   - Math.max(a.x, b.x);
+    const overlapY = Math.min(a.y + a.height, b.y + b.height) 
+                   - Math.max(a.y, b.y);
+    
+    if (overlapX > 0 && overlapY > 0) {
+        return { x: overlapX, y: overlapY };
+    }
+    return null;  // No overlap
+}
+
+// Push out on the axis with SMALLER overlap
+// This gives the shortest resolution path`;
+
+const codeCircle = `// Circle vs Circle collision
+// Simply check if distance < sum of radii
+
+function circleVsCircle(a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const combinedRadii = a.radius + b.radius;
+    
+    return distance < combinedRadii;
+}
+
+// Optimization: Compare squared distances
+// Avoids expensive sqrt() call!
+function circleVsCircleFast(a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const distSq = dx * dx + dy * dy;
+    const radiusSq = (a.radius + b.radius) ** 2;
+    
+    return distSq < radiusSq;
+}`;
+
+const codeCircleAABB = `// Circle vs AABB collision
+// Find the closest point on the box to the circle center
+
+function circleVsAabb(circle, box) {
+    // Clamp circle center to box bounds
+    const closestX = Math.max(box.x, 
+                     Math.min(circle.x, box.x + box.width));
+    const closestY = Math.max(box.y, 
+                     Math.min(circle.y, box.y + box.height));
+    
+    // Check distance from closest point to circle center
+    const dx = circle.x - closestX;
+    const dy = circle.y - closestY;
+    const distSq = dx * dx + dy * dy;
+    
+    return distSq < circle.radius * circle.radius;
+}
+
+// This handles all cases:
+// - Circle fully outside box
+// - Circle touching box edge
+// - Circle center inside box`;
+
+const codeTileCollision = `// Tile-based collision
+// Only check tiles near the player - much faster than checking all!
+
+const TILE_SIZE = 32;
+
+function getTilesAroundPlayer(player, tiles) {
+    // Calculate which tiles the player might touch
+    const left = Math.floor(player.x / TILE_SIZE);
+    const right = Math.floor((player.x + player.width) / TILE_SIZE);
+    const top = Math.floor(player.y / TILE_SIZE);
+    const bottom = Math.floor((player.y + player.height) / TILE_SIZE);
+    
+    const nearbyTiles = [];
+    
+    for (let y = top; y <= bottom; y++) {
+        for (let x = left; x <= right; x++) {
+            const tile = getTile(x, y);
+            if (tile && tile.solid) {
+                nearbyTiles.push(tile);
+            }
+        }
+    }
+    
+    return nearbyTiles;
+}
+
+// In a 1000x1000 tile level, instead of checking 
+// 1,000,000 tiles, we only check ~4-9 tiles!`;
+
+const codeResolution = `// Collision resolution - separate axes!
+function resolveCollision(player, tiles) {
+    // STEP 1: Move horizontally, then check collisions
+    player.x += player.vx;
+    
+    for (const tile of tiles) {
+        if (aabbVsAabb(player, tile)) {
+            if (player.vx > 0) {
+                // Moving right, push left
+                player.x = tile.x - player.width;
+            } else {
+                // Moving left, push right
+                player.x = tile.x + TILE_SIZE;
+            }
+            player.vx = 0;
+        }
+    }
+    
+    // STEP 2: Move vertically, then check collisions
+    player.y += player.vy;
+    
+    for (const tile of tiles) {
+        if (aabbVsAabb(player, tile)) {
+            if (player.vy > 0) {
+                // Falling down, land on top
+                player.y = tile.y - player.height;
+                player.grounded = true;
+            } else {
+                // Jumping up, hit ceiling
+                player.y = tile.y + TILE_SIZE;
+            }
+            player.vy = 0;
+        }
+    }
+}`;
+
+const codeSwept = `// Swept AABB - prevents tunneling through thin walls
+// Calculates WHEN collision happens during movement
+
+function sweptAabb(moving, velocity, stationary) {
+    // Calculate entry/exit times for each axis
+    let xEntry, yEntry, xExit, yExit;
+    
+    if (velocity.x > 0) {
+        xEntry = (stationary.x - (moving.x + moving.width)) / velocity.x;
+        xExit = (stationary.x + stationary.width - moving.x) / velocity.x;
+    } else if (velocity.x < 0) {
+        xEntry = (stationary.x + stationary.width - moving.x) / velocity.x;
+        xExit = (stationary.x - (moving.x + moving.width)) / velocity.x;
+    } else {
+        xEntry = -Infinity;
+        xExit = Infinity;
+    }
+    
+    // Same for Y axis...
+    
+    // Collision happens when entry times overlap
+    const entryTime = Math.max(xEntry, yEntry);
+    const exitTime = Math.min(xExit, yExit);
+    
+    if (entryTime > exitTime || entryTime < 0 || entryTime > 1) {
+        return { time: 1, normal: null };  // No collision
+    }
+    
+    // Return time of impact (0-1) and collision normal
+    return { time: entryTime, normalX, normalY };
+}`;
+
+// Quiz questions for Module 04
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'What does AABB stand for in collision detection?',
+    options: ['Always Aligned Bounding Box', 'Axis-Aligned Bounding Box', 'Automatic Area Bounding Box', 'Approximate Axis Bounding Box'],
+    correctIndex: 1,
+    explanation: 'AABB stands for Axis-Aligned Bounding Box. "Axis-Aligned" means the box edges are always parallel to the X and Y axes, making collision checks very fast.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'For two AABBs to be colliding, they must overlap on:',
+    options: ['At least one axis', 'Both X and Y axes', 'Either X or Y axis (not both)', 'The diagonal axis'],
+    correctIndex: 1,
+    explanation: 'Two AABBs collide only when they overlap on BOTH axes simultaneously. If there\'s a gap on either axis, the boxes don\'t touch!'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the circle vs circle collision check:',
+    codeTemplate: 'const distance = Math.sqrt(dx * dx + dy * dy);\nreturn distance < a.radius + b.___;',
+    answers: ['radius'],
+    explanation: 'Two circles collide when the distance between their centers is less than the sum of their radii (a.radius + b.radius).'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Why is tile-based collision efficient for large levels?',
+    options: ['Tiles are smaller than the player', 'We only check tiles near the player', 'Tiles don\'t need collision detection', 'Tiles are always square'],
+    correctIndex: 1,
+    explanation: 'By using the player\'s position to calculate which tiles they might be touching, we only check ~4-9 tiles instead of potentially thousands. This spatial optimization is O(1) instead of O(n)!'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'When resolving platformer collisions, why do we handle X and Y axes separately?',
+    options: ['It\'s faster to compute', 'It prevents getting stuck in corners', 'It\'s required by physics engines', 'It uses less memory'],
+    correctIndex: 1,
+    explanation: 'Handling axes separately prevents the player from getting stuck in corners and makes collision response predictable. First move X and resolve, then move Y and resolve.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What problem does "swept collision" solve?',
+    options: ['Slow collision checks', 'Objects tunneling through thin walls', 'Memory usage', 'Diagonal movement'],
+    correctIndex: 1,
+    explanation: 'At high speeds, an object can move past a thin wall in one frame (tunneling). Swept collision checks the entire path of movement, finding where collision would occur along the way.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Find the closest point on a box to check circle collision:',
+    codeTemplate: 'const closestX = Math.max(box.x, Math.___.(circle.x, box.x + box.width));',
+    answers: ['min'],
+    explanation: 'To find the closest point, we clamp the circle center to the box bounds using Math.max for the minimum bound and Math.min for the maximum bound.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In swept collision, what does a "time of impact" of 0.5 mean?',
+    options: ['Collision at half speed', 'Collision halfway through the movement', 'Half the objects collided', '50% chance of collision'],
+    correctIndex: 1,
+    explanation: 'Time of impact is normalized 0-1, where 0 means collision at the start, 1 means collision at the end (or no collision). 0.5 means collision occurs exactly halfway through the object\'s intended movement.'
+  }
+];
+---
+
+<ModuleLayout 
+  title="Collision Detection"
+  moduleNumber="04"
+  projectName="Platformer Game"
+  prevModule={{ href: '/modules/03-physics/', title: 'Physics Simulation' }}
+  nextModule={{ href: '/modules/05-matrices/', title: 'Matrix Math' }}
+>
+  <!-- Lesson 1: AABB vs AABB -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></svg>
+      1. AABB vs AABB Collision
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">AABB</strong> (Axis-Aligned Bounding Box) is the simplest and fastest 
+      collision detection method. It works for rectangles that are aligned with the X and Y axes.
+    </p>
+    
+    <p class="text-text-secondary mb-4">
+      Two boxes collide if and only if they overlap on <strong class="text-white">both</strong> axes:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>A's left edge is left of B's right edge</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>A's right edge is right of B's left edge</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>A's top edge is above B's bottom edge</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>A's bottom edge is below B's top edge</span>
+      </li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeAABB} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Try dragging the boxes below to see AABB collision in action:
+    </p>
+
+    <AABBVisualizer client:visible />
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#6c5ce7]">Performance:</strong> AABB collision is O(1) — just 4 comparisons! 
+        This makes it ideal for real-time games where you might check thousands of collisions per frame.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: Circle vs Circle -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+      2. Circle vs Circle Collision
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Circle collision uses the <strong class="text-white">distance formula</strong>. Two circles 
+      collide when the distance between their centers is less than the sum of their radii:
+    </p>
+    
+    <div class="bg-[#1a1a24] rounded-xl p-4 mb-6 text-center">
+      <code class="text-lg text-white">distance &lt; radius₁ + radius₂</code>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeCircle} /></pre>
+    </div>
+
+    <CircleVisualizer client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+        <span><strong class="text-[#00b894]">Pro Tip:</strong> Compare squared distances instead of actual 
+        distances to avoid the expensive <code>Math.sqrt()</code> call. Just compare 
+        <code>distSq &lt; (r1+r2)²</code> instead!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Circle vs AABB -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+      3. Circle vs AABB Collision
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Combining circles and boxes is common — think of a round player character and rectangular platforms.
+      The trick is to find the <strong class="text-white">closest point</strong> on the box to the circle's center.
+    </p>
+    
+    <p class="text-text-secondary mb-4">
+      We "clamp" the circle's center to the box's bounds, giving us the nearest point:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeCircleAABB} /></pre>
+    </div>
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#fdcb6e]">Use Cases:</strong> This is perfect for coin collection 
+        (circular coins, rectangular player), player vs walls, or any mix of round and rectangular objects.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: Tile-Based Collision -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+      4. Tile-Based Collision
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Platformer levels are often built from <strong class="text-white">tiles</strong> — a grid of 
+      equal-sized squares. This lets us design levels easily and optimize collision detection.
+    </p>
+    
+    <p class="text-text-secondary mb-4">
+      Instead of checking against every tile, we calculate <strong class="text-white">which tiles 
+      the player might touch</strong>:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeTileCollision} /></pre>
+    </div>
+
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        <span><strong class="text-white">Spatial Optimization:</strong> This is O(1) complexity — 
+        we always check the same number of tiles regardless of level size!</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        <span><strong class="text-white">Level Design:</strong> Tiles make it easy to build levels 
+        using simple string arrays or image-based level editors.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Lesson 5: Collision Resolution -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+      5. Collision Resolution
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Detecting a collision is only half the problem — we also need to <strong class="text-white">respond</strong> 
+      to it! Common responses include:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2"><svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M12 8v8"/><path d="m8 12 4-4 4 4"/></svg> <strong class="text-white">Stopping</strong> — Zero velocity, stay at collision point</li>
+      <li class="flex items-center gap-2"><svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg> <strong class="text-white">Sliding</strong> — Maintain movement along one axis</li>
+      <li class="flex items-center gap-2"><svg class="w-5 h-5 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg> <strong class="text-white">Bouncing</strong> — Reflect velocity off surface</li>
+      <li class="flex items-center gap-2"><svg class="w-5 h-5 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 4 4 4-4"/></svg> <strong class="text-white">Pushing</strong> — Move the other object</li>
+    </ul>
+    
+    <p class="text-text-secondary mb-4">
+      For platformers, we handle <strong class="text-white">X and Y axes separately</strong>. This 
+      prevents corner-sticking and makes movement predictable:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeResolution} /></pre>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeAABBOverlap} /></pre>
+    </div>
+  </section>
+
+  <!-- Lesson 6: Swept Collision -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+      6. Swept Collision (Tunneling Prevention)
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Fast-moving objects can <strong class="text-white">tunnel through</strong> thin walls! If a bullet 
+      moves 100 pixels per frame and a wall is only 10 pixels thick, it might pass right through.
+    </p>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Swept collision</strong> solves this by checking the entire path of 
+      movement, not just the final position. It answers: "When during this movement would collision occur?"
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeSwept} /></pre>
+    </div>
+
+    <SweptCollisionVisualizer client:visible />
+
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#e17055] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#e17055]">When to Use:</strong> Swept collision is more expensive 
+        than simple AABB. Use it for fast objects (bullets, projectiles) or thin walls, but regular 
+        AABB is fine for most platformer movement.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Project: Platformer Game -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Platformer Game
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      All the collision concepts come together in this platformer! It features:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <strong class="text-white">AABB Collision</strong> — Player vs platforms and walls</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <strong class="text-white">Circle Collision</strong> — Coin collection</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <strong class="text-white">Tile-Based Level</strong> — Efficient collision checks</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <strong class="text-white">Separate Axis Resolution</strong> — Smooth wall sliding</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <strong class="text-white">Grounded Detection</strong> — For jump control</li>
+    </ul>
+
+    <Platformer client:visible />
+    
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+        <span><strong class="text-[#6c5ce7]">Debug Mode:</strong> Click "Debug" to see the collision 
+        system in action! Watch which tiles are being checked and see the player's hitbox and velocity vector.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Extend the platformer with these collision-based features:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">One-Way Platforms:</strong> Platforms you can jump through from below
+      </li>
+      <li>
+        <strong class="text-white">Moving Platforms:</strong> Platforms that move, carrying the player with them
+      </li>
+      <li>
+        <strong class="text-white">Slopes:</strong> Angled surfaces (hint: requires different math!)
+      </li>
+      <li>
+        <strong class="text-white">Enemies:</strong> Add hazards that damage the player on collision
+      </li>
+      <li>
+        <strong class="text-white">Double Jump:</strong> Allow jumping once while airborne
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formulas Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+      Quick Reference
+    </h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">AABB Collision</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>a.x &lt; b.x + b.width</code></li>
+            <li><code>a.x + a.width &gt; b.x</code></li>
+            <li><code>a.y &lt; b.y + b.height</code></li>
+            <li><code>a.y + a.height &gt; b.y</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Circle Collision</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>d = √(dx² + dy²)</code></li>
+            <li><code>collision = d &lt; r₁ + r₂</code></li>
+            <li class="text-[#a0a0b0]">Fast: <code>d² &lt; (r₁ + r₂)²</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Circle vs AABB</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>closestX = clamp(cx, bx, bx+w)</code></li>
+            <li><code>closestY = clamp(cy, by, by+h)</code></li>
+            <li><code>d² &lt; r²</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Tile Lookup</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>tileX = floor(x / TILE_SIZE)</code></li>
+            <li><code>tileY = floor(y / TILE_SIZE)</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of collision detection! Use number keys 1-4 to select answers.
+    </p>
+    <Quiz 
+      client:visible 
+      title="Collision Detection Quiz" 
+      questions={quizQuestions} 
+    />
+  </section>
+</ModuleLayout>
