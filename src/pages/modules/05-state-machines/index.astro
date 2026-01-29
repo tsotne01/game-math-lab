@@ -1,0 +1,642 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import CombatSystem, { StateMachineVisualizer, HitboxVisualizer, InputBufferDemo } from '../../../components/modules/CombatSystem';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 05
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'What are the two main components of a Finite State Machine?',
+    options: [
+      'Variables and functions',
+      'States and transitions',
+      'Inputs and outputs',
+      'Classes and objects'
+    ],
+    correctIndex: 1,
+    explanation: 'A Finite State Machine consists of a finite set of states and transitions between them. The system is always in exactly one state at a time.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In a fighting game, why can\'t a character transition from "attack" to "walk" mid-animation?',
+    options: [
+      'It would cause a memory leak',
+      'State transitions have conditions that must be met',
+      'Walk state doesn\'t exist',
+      'Attacks are infinite loops'
+    ],
+    correctIndex: 1,
+    explanation: 'State transitions have conditions. The attack state typically requires the animation to complete before allowing transitions to other states like walk or idle.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is "frame data" in fighting games?',
+    options: [
+      'The number of pixels in each frame',
+      'The timing information for attack phases (startup, active, recovery)',
+      'The frame rate of the game',
+      'Memory addresses of animation frames'
+    ],
+    correctIndex: 1,
+    explanation: 'Frame data describes how many frames each phase of an attack takes: startup (before hitbox appears), active (hitbox is active), and recovery (after hitbox disappears).'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the state transition function:',
+    codeTemplate: `function transitionTo(newState) {
+  if (canTransitionTo(___)) {
+    currentState = ___;
+    stateTime = 0;
+  }
+}`,
+    answers: ['newState', 'newState'],
+    explanation: 'State transitions check if the transition is valid, then update the current state and reset the state timer to 0.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the difference between a hitbox and a hurtbox?',
+    options: [
+      'They are the same thing',
+      'Hitbox deals damage, hurtbox receives damage',
+      'Hitbox is for players, hurtbox is for enemies',
+      'Hitbox is 2D, hurtbox is 3D'
+    ],
+    correctIndex: 1,
+    explanation: 'A hitbox is an attack zone that deals damage when it overlaps with an opponent\'s hurtbox. A hurtbox is the vulnerable area that can receive damage.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'Why do fighting games use input buffering?',
+    options: [
+      'To save memory',
+      'To allow players to queue inputs during animations',
+      'To prevent cheating',
+      'To reduce network lag'
+    ],
+    correctIndex: 1,
+    explanation: 'Input buffering stores recent inputs so players can queue their next action before the current one finishes. This makes combos feel responsive and forgiving.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In enemy AI, what\'s the typical transition from "patrol" to "chase" state?',
+    options: [
+      'Random timer expires',
+      'Player enters detection range',
+      'Enemy health drops below 50%',
+      'Attack animation completes'
+    ],
+    correctIndex: 1,
+    explanation: 'The patrol-to-chase transition typically occurs when the player enters the enemy\'s detection range. This creates the classic behavior of enemies "noticing" the player.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the hitbox collision check:',
+    codeTemplate: `function checkHit(attacker, defender) {
+  if (attacker.hitbox.___ && !defender.invincible) {
+    if (collides(attacker.hitbox, defender.___)) {
+      defender.health -= attacker.hitbox.damage;
+    }
+  }
+}`,
+    answers: ['active', 'hurtbox'],
+    explanation: 'We check if the attacker\'s hitbox is active and the defender isn\'t invincible, then test collision between the hitbox and the defender\'s hurtbox.'
+  }
+];
+
+// Code snippets
+const codeBasicFSM = `// A simple state machine
+let currentState = 'idle';
+let stateTime = 0;
+
+function update() {
+  stateTime++;
+  
+  switch (currentState) {
+    case 'idle':
+      if (input.left || input.right) {
+        transitionTo('walk');
+      }
+      if (input.attack) {
+        transitionTo('attack');
+      }
+      break;
+      
+    case 'walk':
+      if (!input.left && !input.right) {
+        transitionTo('idle');
+      }
+      break;
+      
+    case 'attack':
+      if (stateTime >= ATTACK_DURATION) {
+        transitionTo('idle');
+      }
+      break;
+  }
+}`;
+
+const codeStateTransition = `function transitionTo(newState) {
+  // Check if transition is allowed
+  if (!canTransition(currentState, newState)) {
+    return;
+  }
+  
+  // Exit current state
+  onStateExit(currentState);
+  
+  // Enter new state
+  currentState = newState;
+  stateTime = 0;
+  onStateEnter(newState);
+}
+
+function canTransition(from, to) {
+  // Can always transition to 'hit' (interrupted by damage)
+  if (to === 'hit') return true;
+  
+  // Can't interrupt attacks mid-animation
+  if (from === 'attack' && stateTime < ATTACK_DURATION) {
+    return false;
+  }
+  
+  return true;
+}`;
+
+const codeHitboxes = `// Attack with hitbox data
+const attacks = {
+  light: {
+    startup: 5,    // Frames before hitbox appears
+    active: 8,     // Frames hitbox is active
+    recovery: 7,   // Frames after hitbox disappears
+    damage: 10,
+    hitbox: { width: 60, height: 40 }
+  },
+  heavy: {
+    startup: 12,
+    active: 10,
+    recovery: 13,
+    damage: 25,
+    hitbox: { width: 80, height: 50 }
+  }
+};
+
+function updateAttack() {
+  const attack = attacks[currentAttack];
+  const frame = stateTime;
+  
+  if (frame >= attack.startup && 
+      frame < attack.startup + attack.active) {
+    // Hitbox is active!
+    player.hitbox = createHitbox(attack);
+  } else {
+    player.hitbox = null;
+  }
+}`;
+
+const codeInputBuffer = `const INPUT_BUFFER_TIME = 500; // milliseconds
+let inputBuffer = [];
+
+function onKeyDown(key) {
+  inputBuffer.push({
+    key: key,
+    time: Date.now()
+  });
+  
+  // Keep buffer small
+  if (inputBuffer.length > 10) {
+    inputBuffer.shift();
+  }
+}
+
+function getBufferedInput() {
+  const now = Date.now();
+  
+  // Find most recent valid input
+  for (let i = inputBuffer.length - 1; i >= 0; i--) {
+    const input = inputBuffer[i];
+    if (now - input.time < INPUT_BUFFER_TIME) {
+      inputBuffer.splice(i, 1);  // Consume input
+      return input.key;
+    }
+  }
+  
+  return null;
+}`;
+
+const codeEnemyAI = `// Enemy state machine
+function updateEnemy() {
+  const distToPlayer = Math.abs(player.x - enemy.x);
+  
+  switch (enemy.state) {
+    case 'patrol':
+      // Walk back and forth
+      enemy.vx = enemy.direction * PATROL_SPEED;
+      
+      // Switch to chase if player is close
+      if (distToPlayer < DETECTION_RANGE) {
+        transitionTo('chase');
+      }
+      break;
+      
+    case 'chase':
+      // Move toward player
+      enemy.direction = player.x > enemy.x ? 1 : -1;
+      enemy.vx = enemy.direction * CHASE_SPEED;
+      
+      // Attack if in range
+      if (distToPlayer < ATTACK_RANGE) {
+        transitionTo('attack');
+      }
+      
+      // Give up if player escapes
+      if (distToPlayer > GIVE_UP_RANGE) {
+        transitionTo('patrol');
+      }
+      break;
+      
+    case 'attack':
+      enemy.vx = 0;
+      // Attack logic...
+      break;
+  }
+}`;
+---
+
+<ModuleLayout 
+  title="State Machines"
+  moduleNumber="05"
+  projectName="Beat 'em Up Combat"
+  prevModule={{ href: '/modules/04-collision/', title: 'Collision Detection' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <p class="text-xl text-text-secondary mb-6">
+      State machines are the backbone of game character behavior. From player controls to enemy AI, 
+      understanding Finite State Machines (FSMs) is essential for creating responsive, predictable 
+      game mechanics.
+    </p>
+    
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-6">
+      <h3 class="text-lg font-bold text-[#6c5ce7] mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        What You'll Build
+      </h3>
+      <p class="text-text-secondary">
+        A beat 'em up combat system with a player character that can walk, jump, attack, and block. 
+        You'll also create an enemy with patrol/chase AI, visualize hitboxes and hurtboxes, and 
+        implement input buffering for combos.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: What is a Finite State Machine? -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. What is a Finite State Machine (FSM)?</h2>
+    
+    <p class="text-text-secondary mb-4">
+      A <strong class="text-white">Finite State Machine</strong> is a computational model where:
+    </p>
+    
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+        <span>The system can be in exactly <strong class="text-white">one state</strong> at a time</span>
+      </li>
+      <li class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        <span><strong class="text-white">Transitions</strong> move the system from one state to another</span>
+      </li>
+      <li class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>Transitions have <strong class="text-white">conditions</strong> that determine when they trigger</span>
+      </li>
+    </ul>
+
+    <p class="text-text-secondary mb-6">
+      Think of a character in a fighting game: they can be <em>idle</em>, <em>walking</em>, 
+      <em>attacking</em>, or <em>taking damage</em> — but never two of these at once.
+    </p>
+
+    <CodeBlock client:load code={codeBasicFSM} language="javascript" />
+    
+    <StateMachineVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 2: Designing States -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Designing Character States</h2>
+    
+    <p class="text-text-secondary mb-4">
+      A well-designed state machine starts with identifying all the states your character needs:
+    </p>
+    
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-[#1a1a24] rounded-xl p-4 border border-[#2a2a3a]">
+        <h4 class="font-bold text-[#6c5ce7] mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+          Movement States
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li><strong class="text-white">Idle</strong> - Standing still, ready for input</li>
+          <li><strong class="text-white">Walk</strong> - Moving horizontally</li>
+          <li><strong class="text-white">Jump</strong> - Airborne, affected by gravity</li>
+          <li><strong class="text-white">Crouch</strong> - Ducking, smaller hitbox</li>
+        </ul>
+      </div>
+      
+      <div class="bg-[#1a1a24] rounded-xl p-4 border border-[#2a2a3a]">
+        <h4 class="font-bold text-[#e17055] mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/></svg>
+          Combat States
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li><strong class="text-white">Attack</strong> - Performing an offensive move</li>
+          <li><strong class="text-white">Block</strong> - Defending, reduced damage</li>
+          <li><strong class="text-white">Hit</strong> - Stunned from taking damage</li>
+          <li><strong class="text-white">Death</strong> - Game over for this character</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="bg-[#0a0a0f] rounded-xl p-6 mb-6 border border-[#2a2a3a]">
+      <h4 class="font-bold text-white mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+        Pro Tip: State Properties
+      </h4>
+      <p class="text-text-secondary text-sm">
+        Each state can have its own properties: <code>canMove</code>, <code>canAttack</code>, 
+        <code>invincible</code>, etc. This makes it easy to control what actions are available 
+        in each state.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: State Transitions -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. State Transitions</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Transitions define <em>when</em> and <em>how</em> states change. A transition consists of:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <strong class="text-white">Source state:</strong> Where you're coming from
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <strong class="text-white">Target state:</strong> Where you're going
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <strong class="text-white">Condition:</strong> When the transition happens
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeStateTransition} language="javascript" />
+
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-6 mt-6">
+      <h4 class="font-bold text-[#e17055] mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Common Pitfall: Transition Priority
+      </h4>
+      <p class="text-text-secondary text-sm">
+        Some transitions should have priority. Getting hit should interrupt almost anything 
+        (except maybe invincibility frames). Death should be a terminal state with no 
+        outgoing transitions.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: Animation States -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Animation States & Frame Data</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Each state is typically tied to an animation. In fighting games, attacks have precise 
+      <strong class="text-white">frame data</strong> that determines their timing:
+    </p>
+    
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4 text-center">
+        <svg class="w-8 h-8 text-[#fdcb6e] mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <h4 class="font-bold text-[#fdcb6e] mb-1">Startup</h4>
+        <p class="text-xs text-text-secondary">Frames before the attack becomes active</p>
+      </div>
+      
+      <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-4 text-center">
+        <svg class="w-8 h-8 text-[#e17055] mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/></svg>
+        <h4 class="font-bold text-[#e17055] mb-1">Active</h4>
+        <p class="text-xs text-text-secondary">Frames where the hitbox can deal damage</p>
+      </div>
+      
+      <div class="bg-[#74b9ff]/10 border border-[#74b9ff]/30 rounded-xl p-4 text-center">
+        <svg class="w-8 h-8 text-[#74b9ff] mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        <h4 class="font-bold text-[#74b9ff] mb-1">Recovery</h4>
+        <p class="text-xs text-text-secondary">Frames after the attack, vulnerable</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeHitboxes} language="javascript" />
+    
+    <HitboxVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 5: Input Buffering -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Input Buffering</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Input buffering</strong> stores recent inputs so players can 
+      queue actions during animations. This makes games feel more responsive and allows for combos.
+    </p>
+    
+    <div class="bg-[#1a1a24] rounded-xl p-6 mb-6 border border-[#2a2a3a]">
+      <h4 class="font-semibold text-white mb-3">Why Input Buffering Matters:</h4>
+      <ul class="text-sm text-text-secondary space-y-2">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          Players can input combos without frame-perfect timing
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          Actions queue during recovery frames for seamless chains
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          Reduces frustration from "I pressed it but nothing happened!"
+        </li>
+      </ul>
+    </div>
+
+    <CodeBlock client:load code={codeInputBuffer} language="javascript" />
+    
+    <InputBufferDemo client:visible />
+  </section>
+
+  <!-- Lesson 6: Hitboxes vs Hurtboxes -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">6. Hitboxes vs Hurtboxes</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Fighting games distinguish between two types of collision boxes:
+    </p>
+    
+    <div class="grid md:grid-cols-2 gap-6 mb-6">
+      <div class="bg-[#e17055]/10 border-2 border-[#e17055] rounded-xl p-5">
+        <h4 class="font-bold text-[#e17055] mb-3 flex items-center gap-2 text-lg">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/></svg>
+          Hitbox
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>Attached to attacks</li>
+          <li>Only active during certain frames</li>
+          <li><strong class="text-white">Deals</strong> damage on collision</li>
+          <li>Shape varies per attack</li>
+        </ul>
+      </div>
+      
+      <div class="bg-[#00b894]/10 border-2 border-[#00b894] border-dashed rounded-xl p-5">
+        <h4 class="font-bold text-[#00b894] mb-3 flex items-center gap-2 text-lg">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+          Hurtbox
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>Follows the character</li>
+          <li>Usually always active</li>
+          <li><strong class="text-white">Receives</strong> damage on collision</li>
+          <li>May change with animation</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      When a hitbox overlaps with an opponent's hurtbox, damage is dealt. The hit character 
+      transitions to the "hit" state and receives invincibility frames to prevent infinite combos.
+    </p>
+    
+    <div class="bg-[#0a0a0f] rounded-xl p-6 border border-[#2a2a3a]">
+      <h4 class="font-bold text-white mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+        Advanced: Invincible Hurtboxes
+      </h4>
+      <p class="text-text-secondary text-sm">
+        Some attacks make parts of the character invincible. An uppercut might have no hurtbox 
+        on the fist, making it beat other attacks. This creates the "priority" system in fighting games.
+      </p>
+    </div>
+  </section>
+
+  <!-- Bonus: Enemy AI -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+      Bonus: Enemy AI State Machine
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Enemy AI often uses the same state machine pattern. A simple enemy might have these states:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-[#00b894]"></span>
+        <strong class="text-white">Patrol:</strong> Walk back and forth, unaware of player
+      </li>
+      <li class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-[#fdcb6e]"></span>
+        <strong class="text-white">Chase:</strong> Player detected, pursue them
+      </li>
+      <li class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-[#e17055]"></span>
+        <strong class="text-white">Attack:</strong> In range, perform attack
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeEnemyAI} language="javascript" />
+  </section>
+
+  <!-- Project: Combat System -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Beat 'em Up Combat
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Put it all together! This combat system demonstrates everything we learned:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Player state machine (idle, walk, jump, attack, hit, block)</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Enemy AI state machine (patrol, chase, attack)</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Frame data for attacks (startup, active, recovery)</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Hitbox/hurtbox collision system</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Visual state debugging (toggle hitboxes & state info)</li>
+    </ul>
+
+    <CombatSystem client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of state machines and combat systems!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="State Machines Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="05-state-machines" 
+      moduleName="State Machines"
+    />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Mastered the basics? Try these extensions:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Dash State:</strong> Add a dash that grants invincibility frames
+      </li>
+      <li>
+        <strong class="text-white">Air Combos:</strong> Let attacks chain in the air with juggle states
+      </li>
+      <li>
+        <strong class="text-white">Special Moves:</strong> Add motion inputs (like ↓↘→+Attack)
+      </li>
+      <li>
+        <strong class="text-white">Grab System:</strong> Add a throw state that beats blocking
+      </li>
+      <li>
+        <strong class="text-white">Super Meter:</strong> Build meter through hits, spend on powerful attacks
+      </li>
+    </ol>
+  </section>
+</ModuleLayout>
