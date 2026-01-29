@@ -272,9 +272,18 @@ function SceneTree({ nodes, selectedId, onSelect, onToggleExpand, onToggleVisibi
   };
 
   return (
-    <div className="text-sm">
+    <ul 
+      className="text-sm" 
+      role="tree" 
+      aria-label={depth === 0 ? "Scene hierarchy" : undefined}
+    >
       {nodes.map((node) => (
-        <div key={node.id}>
+        <li 
+          key={node.id} 
+          role="treeitem" 
+          aria-expanded={node.children.length > 0 ? node.expanded : undefined}
+          aria-selected={selectedId === node.id}
+        >
           <div
             className={`flex items-center gap-1 py-1 px-2 cursor-pointer rounded transition-colors ${
               selectedId === node.id 
@@ -283,22 +292,34 @@ function SceneTree({ nodes, selectedId, onSelect, onToggleExpand, onToggleVisibi
             }`}
             style={{ paddingLeft: `${depth * 12 + 8}px` }}
             onClick={() => onSelect(node.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect(node.id);
+              }
+            }}
+            tabIndex={0}
+            role="button"
+            aria-label={`Select ${node.name}`}
           >
             {node.children.length > 0 ? (
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleExpand(node.id); }}
                 className="p-0.5 hover:bg-white/10 rounded"
+                aria-label={node.expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
               >
                 {node.expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </button>
             ) : (
-              <span className="w-4" />
+              <span className="w-4" aria-hidden="true" />
             )}
-            <span className="text-text-secondary">{getIcon(node.type)}</span>
+            <span className="text-text-secondary" aria-hidden="true">{getIcon(node.type)}</span>
             <span className="flex-1 truncate">{node.name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); onToggleVisibility(node.id); }}
               className="p-0.5 hover:bg-white/10 rounded text-text-secondary"
+              aria-label={node.visible ? `Hide ${node.name}` : `Show ${node.name}`}
+              aria-pressed={node.visible}
             >
               {node.visible ? <Eye size={12} /> : <EyeOff size={12} />}
             </button>
@@ -313,9 +334,9 @@ function SceneTree({ nodes, selectedId, onSelect, onToggleExpand, onToggleVisibi
               depth={depth + 1}
             />
           )}
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -356,85 +377,95 @@ function PropertyInspector({ node, onUpdate }: PropertyInspectorProps) {
   };
 
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-4 text-sm" role="form" aria-label="Object properties">
       <div>
-        <label className="text-text-secondary text-xs uppercase tracking-wider">Name</label>
+        <label htmlFor={`name-${node.id}`} className="text-text-secondary text-xs uppercase tracking-wider">Name</label>
         <input
+          id={`name-${node.id}`}
           type="text"
           value={node.name}
           onChange={(e) => onUpdate(node.id, { name: e.target.value })}
           className="w-full bg-black/30 border border-border rounded px-2 py-1 mt-1"
+          aria-label="Object name"
         />
       </div>
 
-      <div>
-        <label className="text-text-secondary text-xs uppercase tracking-wider flex items-center gap-1">
-          <Move size={12} /> Position
-        </label>
+      <fieldset>
+        <legend className="text-text-secondary text-xs uppercase tracking-wider flex items-center gap-1">
+          <Move size={12} aria-hidden="true" /> Position
+        </legend>
         <div className="grid grid-cols-3 gap-2 mt-1">
           {(['X', 'Y', 'Z'] as const).map((axis, i) => (
             <div key={axis}>
-              <span className="text-xs text-text-secondary">{axis}</span>
+              <label htmlFor={`pos-${axis}-${node.id}`} className="text-xs text-text-secondary">{axis}</label>
               <input
+                id={`pos-${axis}-${node.id}`}
                 type="number"
                 step="0.1"
                 value={node.position[i].toFixed(2)}
                 onChange={(e) => updatePosition(i as 0 | 1 | 2, parseFloat(e.target.value) || 0)}
                 className="w-full bg-black/30 border border-border rounded px-2 py-1"
+                aria-label={`Position ${axis}`}
               />
             </div>
           ))}
         </div>
-      </div>
+      </fieldset>
 
-      <div>
-        <label className="text-text-secondary text-xs uppercase tracking-wider flex items-center gap-1">
-          <RotateCw size={12} /> Rotation (degrees)
-        </label>
+      <fieldset>
+        <legend className="text-text-secondary text-xs uppercase tracking-wider flex items-center gap-1">
+          <RotateCw size={12} aria-hidden="true" /> Rotation (degrees)
+        </legend>
         <div className="grid grid-cols-3 gap-2 mt-1">
           {(['X', 'Y', 'Z'] as const).map((axis, i) => (
             <div key={axis}>
-              <span className="text-xs text-text-secondary">{axis}</span>
+              <label htmlFor={`rot-${axis}-${node.id}`} className="text-xs text-text-secondary">{axis}</label>
               <input
+                id={`rot-${axis}-${node.id}`}
                 type="number"
                 step="5"
                 value={(node.rotation[i] * (180 / Math.PI)).toFixed(1)}
                 onChange={(e) => updateRotation(i as 0 | 1 | 2, parseFloat(e.target.value) || 0)}
                 className="w-full bg-black/30 border border-border rounded px-2 py-1"
+                aria-label={`Rotation ${axis}`}
               />
             </div>
           ))}
         </div>
-      </div>
+      </fieldset>
 
-      <div>
-        <label className="text-text-secondary text-xs uppercase tracking-wider flex items-center gap-1">
-          <Maximize size={12} /> Scale
-        </label>
+      <fieldset>
+        <legend className="text-text-secondary text-xs uppercase tracking-wider flex items-center gap-1">
+          <Maximize size={12} aria-hidden="true" /> Scale
+        </legend>
         <div className="grid grid-cols-3 gap-2 mt-1">
           {(['X', 'Y', 'Z'] as const).map((axis, i) => (
             <div key={axis}>
-              <span className="text-xs text-text-secondary">{axis}</span>
+              <label htmlFor={`scale-${axis}-${node.id}`} className="text-xs text-text-secondary">{axis}</label>
               <input
+                id={`scale-${axis}-${node.id}`}
                 type="number"
                 step="0.1"
                 min="0.1"
                 value={node.scale[i].toFixed(2)}
                 onChange={(e) => updateScale(i as 0 | 1 | 2, parseFloat(e.target.value) || 0.1)}
+                aria-label={`Scale ${axis}`}
                 className="w-full bg-black/30 border border-border rounded px-2 py-1"
               />
             </div>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       <div>
-        <label className="text-text-secondary text-xs uppercase tracking-wider">Color</label>
+        <label htmlFor={`color-${node.id}`} className="text-text-secondary text-xs uppercase tracking-wider">Color</label>
         <input
+          id={`color-${node.id}`}
           type="color"
           value={node.color}
           onChange={(e) => onUpdate(node.id, { color: e.target.value })}
           className="w-full h-8 bg-black/30 border border-border rounded mt-1 cursor-pointer"
+          aria-label="Object color"
         />
       </div>
     </div>
@@ -451,18 +482,26 @@ interface StatsDisplayProps {
 
 function StatsDisplay({ stats }: StatsDisplayProps) {
   return (
-    <div className="absolute top-2 left-2 bg-black/80 border border-border rounded p-2 text-xs font-mono">
+    <div 
+      className="absolute top-2 left-2 bg-black/80 border border-border rounded p-2 text-xs font-mono"
+      role="status"
+      aria-label="Render statistics"
+      aria-live="polite"
+    >
       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
         <span className="text-text-secondary">FPS:</span>
-        <span className={stats.fps >= 50 ? 'text-green-400' : stats.fps >= 30 ? 'text-yellow-400' : 'text-red-400'}>
+        <span 
+          className={stats.fps >= 50 ? 'text-green-400' : stats.fps >= 30 ? 'text-yellow-400' : 'text-red-400'}
+          aria-label={`Frames per second: ${stats.fps}`}
+        >
           {stats.fps}
         </span>
         <span className="text-text-secondary">Draw Calls:</span>
-        <span className="text-accent">{stats.drawCalls}</span>
+        <span className="text-accent" aria-label={`Draw calls: ${stats.drawCalls}`}>{stats.drawCalls}</span>
         <span className="text-text-secondary">Triangles:</span>
-        <span className="text-accent">{stats.triangles.toLocaleString()}</span>
+        <span className="text-accent" aria-label={`Triangles: ${stats.triangles.toLocaleString()}`}>{stats.triangles.toLocaleString()}</span>
         <span className="text-text-secondary">Geometries:</span>
-        <span className="text-accent">{stats.geometries}</span>
+        <span className="text-accent" aria-label={`Geometries: ${stats.geometries}`}>{stats.geometries}</span>
       </div>
     </div>
   );
@@ -639,41 +678,45 @@ export default function SceneEditor() {
 
   return (
     <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
-      <div className="flex h-[600px]">
+      <div className="flex flex-col lg:flex-row h-auto lg:h-[600px]">
         {/* Left Panel: Scene Hierarchy */}
-        <div className="w-64 border-r border-border flex flex-col">
+        <div className="w-full lg:w-64 border-b lg:border-b-0 lg:border-r border-border flex flex-col max-h-[250px] lg:max-h-none">
           <div className="p-3 border-b border-border bg-black/20">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-sm flex items-center gap-2">
-                <Layers size={16} className="text-accent" />
+              <h3 id="hierarchy-heading" className="font-semibold text-sm flex items-center gap-2">
+                <Layers size={16} className="text-accent" aria-hidden="true" />
                 Scene Hierarchy
               </h3>
               <button
                 onClick={resetScene}
                 className="p-1 hover:bg-white/10 rounded text-text-secondary"
                 title="Reset Scene"
+                aria-label="Reset scene to default"
               >
-                <RefreshCw size={14} />
+                <RefreshCw size={14} aria-hidden="true" />
               </button>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1" role="group" aria-label="Add objects">
               <button
                 onClick={() => addObject('box')}
                 className="flex-1 text-xs bg-accent/20 hover:bg-accent/30 text-accent px-2 py-1 rounded flex items-center justify-center gap-1"
+                aria-label="Add box to scene"
               >
-                <Plus size={12} /> Box
+                <Plus size={12} aria-hidden="true" /> Box
               </button>
               <button
                 onClick={() => addObject('sphere')}
                 className="flex-1 text-xs bg-accent/20 hover:bg-accent/30 text-accent px-2 py-1 rounded flex items-center justify-center gap-1"
+                aria-label="Add sphere to scene"
               >
-                <Plus size={12} /> Sphere
+                <Plus size={12} aria-hidden="true" /> Sphere
               </button>
               <button
                 onClick={() => addObject('group')}
                 className="flex-1 text-xs bg-accent/20 hover:bg-accent/30 text-accent px-2 py-1 rounded flex items-center justify-center gap-1"
+                aria-label="Add group to scene"
               >
-                <Plus size={12} /> Group
+                <Plus size={12} aria-hidden="true" /> Group
               </button>
             </div>
           </div>
@@ -689,7 +732,8 @@ export default function SceneEditor() {
         </div>
 
         {/* Center: 3D Viewport */}
-        <div className="flex-1 relative">
+        {/* Center: 3D Viewport */}
+        <div className="flex-1 relative min-h-[300px] lg:min-h-0">
           <Canvas shadows>
             <color attach="background" args={['#0d1117']} />
             <ambientLight intensity={0.4} />
@@ -713,67 +757,79 @@ export default function SceneEditor() {
           <StatsDisplay stats={stats} />
           
           {/* Transform Mode Buttons */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/80 border border-border rounded-lg p-1">
+          <div 
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/80 border border-border rounded-lg p-1"
+            role="toolbar"
+            aria-label="Transform tools"
+          >
             <button
               onClick={() => setTransformMode('translate')}
               className={`p-2 rounded ${transformMode === 'translate' ? 'bg-accent text-black' : 'hover:bg-white/10'}`}
               title="Translate (W)"
+              aria-label="Translate mode"
+              aria-pressed={transformMode === 'translate'}
             >
-              <Move size={16} />
+              <Move size={16} aria-hidden="true" />
             </button>
             <button
               onClick={() => setTransformMode('rotate')}
               className={`p-2 rounded ${transformMode === 'rotate' ? 'bg-accent text-black' : 'hover:bg-white/10'}`}
               title="Rotate (E)"
+              aria-label="Rotate mode"
+              aria-pressed={transformMode === 'rotate'}
             >
-              <RotateCw size={16} />
+              <RotateCw size={16} aria-hidden="true" />
             </button>
             <button
               onClick={() => setTransformMode('scale')}
               className={`p-2 rounded ${transformMode === 'scale' ? 'bg-accent text-black' : 'hover:bg-white/10'}`}
               title="Scale (R)"
+              aria-label="Scale mode"
+              aria-pressed={transformMode === 'scale'}
             >
-              <Maximize size={16} />
+              <Maximize size={16} aria-hidden="true" />
             </button>
-            <div className="w-px bg-border mx-1" />
+            <div className="w-px bg-border mx-1" role="separator" aria-orientation="vertical" />
             <button
               onClick={deleteSelected}
               disabled={!selectedId}
               className={`p-2 rounded ${selectedId ? 'hover:bg-red-500/30 text-red-400' : 'opacity-30 cursor-not-allowed'}`}
               title="Delete (Del)"
+              aria-label="Delete selected object"
+              aria-disabled={!selectedId}
             >
-              <Trash2 size={16} />
+              <Trash2 size={16} aria-hidden="true" />
             </button>
           </div>
         </div>
 
         {/* Right Panel: Inspector */}
-        <div className="w-64 border-l border-border flex flex-col">
+        <div className="w-full lg:w-64 border-t lg:border-t-0 lg:border-l border-border flex flex-col max-h-[250px] lg:max-h-none">
           <div className="p-3 border-b border-border bg-black/20">
-            <h3 className="font-semibold text-sm flex items-center gap-2">
-              <Settings size={16} className="text-accent" />
+            <h3 id="inspector-heading" className="font-semibold text-sm flex items-center gap-2">
+              <Settings size={16} className="text-accent" aria-hidden="true" />
               Inspector
             </h3>
           </div>
-          <div className="flex-1 overflow-auto p-3">
+          <div className="flex-1 overflow-auto p-3" aria-labelledby="inspector-heading">
             <PropertyInspector node={selectedNode} onUpdate={updateNode} />
           </div>
         </div>
       </div>
 
       {/* Info Panel */}
-      <div className="p-4 border-t border-border bg-black/20">
-        <div className="flex items-center gap-4 text-sm text-text-secondary">
+      <div className="p-4 border-t border-border bg-black/20" role="note" aria-label="Usage tips">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-4 text-sm text-text-secondary">
           <span className="flex items-center gap-1">
-            <Activity size={14} className="text-accent" />
+            <Activity size={14} className="text-accent" aria-hidden="true" />
             Move the parent Robot group to see children follow!
           </span>
           <span className="flex items-center gap-1">
-            <Eye size={14} />
+            <Eye size={14} aria-hidden="true" />
             Click eye icon to toggle visibility
           </span>
           <span className="flex items-center gap-1">
-            <Layers size={14} />
+            <Layers size={14} aria-hidden="true" />
             Add objects to groups to create hierarchies
           </span>
         </div>
@@ -790,7 +846,7 @@ export function HierarchyTransformDemo() {
   const [parentRotation, setParentRotation] = useState(0);
   const [parentPosition, setParentPosition] = useState({ x: 0, y: 0 });
   const [isAnimating, setIsAnimating] = useState(false);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (isAnimating) {
@@ -876,17 +932,17 @@ export function HierarchyTransformDemo() {
         </Canvas>
         
         {/* Legend */}
-        <div className="absolute top-3 left-3 bg-black/80 border border-border rounded p-2 text-xs">
+        <div className="absolute top-3 left-3 bg-black/80 border border-border rounded p-2 text-xs" role="legend" aria-label="Color legend">
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-3 h-3 rounded bg-[#6c5ce7]"></span>
+            <span className="w-3 h-3 rounded bg-[#6c5ce7]" aria-hidden="true"></span>
             <span>Parent</span>
           </div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-3 h-3 rounded bg-[#00b894]"></span>
+            <span className="w-3 h-3 rounded bg-[#00b894]" aria-hidden="true"></span>
             <span>Child</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded bg-[#fd79a8]"></span>
+            <span className="w-3 h-3 rounded bg-[#fd79a8]" aria-hidden="true"></span>
             <span>Grandchild</span>
           </div>
         </div>
@@ -899,14 +955,17 @@ export function HierarchyTransformDemo() {
             className={`px-4 py-2 rounded flex items-center gap-2 ${
               isAnimating ? 'bg-red-500/20 text-red-400' : 'bg-accent/20 text-accent'
             }`}
+            aria-label={isAnimating ? 'Stop animation' : 'Start parent animation'}
+            aria-pressed={isAnimating}
           >
-            {isAnimating ? <Pause size={16} /> : <Play size={16} />}
+            {isAnimating ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
             {isAnimating ? 'Stop' : 'Animate Parent'}
           </button>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">Parent X:</span>
+            <label htmlFor="parent-x" className="text-sm text-text-secondary">Parent X:</label>
             <input
+              id="parent-x"
               type="range"
               min="-3"
               max="3"
@@ -914,13 +973,15 @@ export function HierarchyTransformDemo() {
               value={parentPosition.x}
               onChange={(e) => setParentPosition((p) => ({ ...p, x: parseFloat(e.target.value) }))}
               className="w-24"
+              aria-label="Parent X position"
             />
-            <span className="text-sm w-12">{parentPosition.x.toFixed(1)}</span>
+            <span className="text-sm w-12" aria-live="polite">{parentPosition.x.toFixed(1)}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">Parent Z:</span>
+            <label htmlFor="parent-z" className="text-sm text-text-secondary">Parent Z:</label>
             <input
+              id="parent-z"
               type="range"
               min="-3"
               max="3"
@@ -928,19 +989,22 @@ export function HierarchyTransformDemo() {
               value={parentPosition.y}
               onChange={(e) => setParentPosition((p) => ({ ...p, y: parseFloat(e.target.value) }))}
               className="w-24"
+              aria-label="Parent Z position"
             />
-            <span className="text-sm w-12">{parentPosition.y.toFixed(1)}</span>
+            <span className="text-sm w-12" aria-live="polite">{parentPosition.y.toFixed(1)}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">Rotation:</span>
+            <label htmlFor="parent-rotation" className="text-sm text-text-secondary">Rotation:</label>
             <input
+              id="parent-rotation"
               type="range"
               min="0"
               max={Math.PI * 2}
               step="0.1"
               value={parentRotation % (Math.PI * 2)}
               onChange={(e) => setParentRotation(parseFloat(e.target.value))}
+              aria-label="Parent rotation"
               className="w-24"
             />
           </div>
@@ -1105,32 +1169,36 @@ export function FrustumCullingDemo() {
       
       <div className="p-4 border-t border-border">
         <div className="flex flex-wrap gap-4 items-center">
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={showFrustum}
               onChange={(e) => setShowFrustum(e.target.checked)}
               className="rounded"
+              aria-describedby="frustum-description"
             />
             <span className="text-sm">Show Frustum</span>
           </label>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">FOV:</span>
+            <label htmlFor="fov-slider" className="text-sm text-text-secondary">FOV:</label>
             <input
+              id="fov-slider"
               type="range"
               min="30"
               max="120"
               value={cameraFov}
               onChange={(e) => setCameraFov(parseInt(e.target.value))}
               className="w-24"
+              aria-label="Field of view"
             />
-            <span className="text-sm w-10">{cameraFov}°</span>
+            <span className="text-sm w-10" aria-live="polite">{cameraFov}°</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">Camera Rotation:</span>
+            <label htmlFor="camera-rotation" className="text-sm text-text-secondary">Camera Rotation:</label>
             <input
+              id="camera-rotation"
               type="range"
               min={-Math.PI}
               max={Math.PI}
@@ -1138,11 +1206,12 @@ export function FrustumCullingDemo() {
               value={cameraRotation}
               onChange={(e) => setCameraRotation(parseFloat(e.target.value))}
               className="w-32"
+              aria-label="Camera rotation angle"
             />
           </div>
         </div>
         
-        <p className="text-sm text-text-secondary mt-3">
+        <p id="frustum-description" className="text-sm text-text-secondary mt-3">
           <strong className="text-white">Frustum culling</strong> skips rendering objects outside the camera's view. 
           The GPU never processes these objects, saving significant performance!
         </p>
@@ -1275,14 +1344,17 @@ export function LODDemo() {
             className={`px-4 py-2 rounded flex items-center gap-2 ${
               autoAnimate ? 'bg-red-500/20 text-red-400' : 'bg-accent/20 text-accent'
             }`}
+            aria-label={autoAnimate ? 'Stop auto-animation' : 'Start auto-animation'}
+            aria-pressed={autoAnimate}
           >
-            {autoAnimate ? <Pause size={16} /> : <Play size={16} />}
+            {autoAnimate ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
             {autoAnimate ? 'Stop' : 'Auto-Animate'}
           </button>
           
           <div className="flex items-center gap-2 flex-1">
-            <span className="text-sm text-text-secondary">Distance:</span>
+            <label htmlFor="lod-distance" className="text-sm text-text-secondary">Distance:</label>
             <input
+              id="lod-distance"
               type="range"
               min="5"
               max="35"
@@ -1290,8 +1362,9 @@ export function LODDemo() {
               value={cameraDistance}
               onChange={(e) => setCameraDistance(parseFloat(e.target.value))}
               className="flex-1 max-w-xs"
+              aria-label="Camera distance from object"
             />
-            <span className="text-sm w-12">{cameraDistance.toFixed(1)}</span>
+            <span className="text-sm w-12" aria-live="polite">{cameraDistance.toFixed(1)}</span>
           </div>
         </div>
         

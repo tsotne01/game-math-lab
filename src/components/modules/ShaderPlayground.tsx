@@ -627,9 +627,10 @@ function CodeEditor({ code, onChange, errors, label, shaderType }: CodeEditorPro
           {lines.map((_, i) => (
             <div 
               key={i} 
-              className={`text-xs h-5 leading-5 ${
+              className={`text-sm sm:text-xs h-5 leading-5 ${
                 errorLines.includes(i + 1) ? 'text-red-400 font-bold' : 'text-[#4a4a5a]'
               }`}
+              aria-hidden="true"
             >
               {i + 1}
             </div>
@@ -640,7 +641,7 @@ function CodeEditor({ code, onChange, errors, label, shaderType }: CodeEditorPro
           value={code}
           onChange={(e) => onChange(e.target.value)}
           onScroll={handleScroll}
-          className="flex-1 bg-transparent text-[#d4d4d4] font-mono text-xs p-2 resize-none focus:outline-none leading-5"
+          className="flex-1 bg-transparent text-[#d4d4d4] font-mono text-sm sm:text-xs p-2 resize-none focus:outline-none leading-5 sm:leading-5"
           spellCheck={false}
           style={{ tabSize: 2 }}
           aria-label={`${shaderType === 'vertex' ? 'Vertex' : 'Fragment'} shader code editor`}
@@ -886,7 +887,7 @@ ${JSON.stringify(uniformValues, null, 2)}`;
             
             {/* Geometry & Controls Overlay */}
             <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex gap-1 bg-black/80 rounded p-1">
+              <div className="flex gap-1 bg-black/80 rounded p-1" role="group" aria-label="Mesh geometry selection">
                 {geometries.map(g => (
                   <button
                     key={g.value}
@@ -895,17 +896,20 @@ ${JSON.stringify(uniformValues, null, 2)}`;
                       geometry === g.value ? 'bg-accent text-black' : 'text-text-secondary hover:text-white'
                     }`}
                     title={g.label}
+                    aria-label={`${g.label} geometry`}
+                    aria-pressed={geometry === g.value}
                   >
                     {g.icon}
                   </button>
                 ))}
               </div>
-              <label className="flex items-center gap-2 bg-black/80 px-3 py-2 rounded text-sm">
+              <label className="flex items-center gap-2 bg-black/80 px-3 py-2 rounded text-sm cursor-pointer">
                 <input
                   type="checkbox"
                   checked={wireframe}
                   onChange={(e) => setWireframe(e.target.checked)}
                   className="accent-accent"
+                  aria-label="Toggle wireframe rendering"
                 />
                 <span className="text-text-secondary">Wireframe</span>
               </label>
@@ -913,7 +917,12 @@ ${JSON.stringify(uniformValues, null, 2)}`;
             
             {/* Error Display */}
             {errors.length > 0 && (
-              <div className="absolute top-4 left-4 right-4 bg-red-900/90 text-red-200 p-3 rounded text-xs font-mono max-h-32 overflow-auto">
+              <div 
+                className="absolute top-4 left-4 right-4 bg-red-900/90 text-red-200 p-3 rounded text-xs font-mono max-h-32 overflow-auto"
+                role="alert"
+                aria-live="polite"
+                aria-label={`${errors.length} shader compilation error${errors.length > 1 ? 's' : ''}`}
+              >
                 {errors.map((err, i) => (
                   <div key={i} className="flex gap-2">
                     <span className="text-red-400">[{err.type}:{err.line}]</span>
@@ -928,7 +937,7 @@ ${JSON.stringify(uniformValues, null, 2)}`;
         {/* Right: Code Editor & Controls */}
         <div className="lg:w-1/2 flex flex-col">
           {/* Tab Buttons */}
-          <div className="flex border-b border-border">
+          <div className="flex border-b border-border" role="tablist" aria-label="Shader code editors">
             <button
               onClick={() => setActiveTab('vertex')}
               className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
@@ -936,6 +945,10 @@ ${JSON.stringify(uniformValues, null, 2)}`;
                   ? 'bg-[#1e1e2e] text-white border-b-2 border-accent' 
                   : 'text-text-secondary hover:text-white'
               }`}
+              role="tab"
+              aria-selected={activeTab === 'vertex'}
+              aria-controls="vertex-panel"
+              id="vertex-tab"
             >
               Vertex Shader
             </button>
@@ -946,6 +959,10 @@ ${JSON.stringify(uniformValues, null, 2)}`;
                   ? 'bg-[#1e1e2e] text-white border-b-2 border-accent' 
                   : 'text-text-secondary hover:text-white'
               }`}
+              role="tab"
+              aria-selected={activeTab === 'fragment'}
+              aria-controls="fragment-panel"
+              id="fragment-tab"
             >
               Fragment Shader
             </button>
@@ -954,21 +971,25 @@ ${JSON.stringify(uniformValues, null, 2)}`;
           {/* Code Editor */}
           <div className="flex-1 min-h-[250px]">
             {activeTab === 'vertex' ? (
-              <CodeEditor
-                code={vertexShader}
-                onChange={setVertexShader}
-                errors={errors}
-                label="vertex.glsl"
-                shaderType="vertex"
-              />
+              <div role="tabpanel" id="vertex-panel" aria-labelledby="vertex-tab" className="h-full">
+                <CodeEditor
+                  code={vertexShader}
+                  onChange={setVertexShader}
+                  errors={errors}
+                  label="vertex.glsl"
+                  shaderType="vertex"
+                />
+              </div>
             ) : (
-              <CodeEditor
-                code={fragmentShader}
-                onChange={setFragmentShader}
-                errors={errors}
-                label="fragment.glsl"
-                shaderType="fragment"
-              />
+              <div role="tabpanel" id="fragment-panel" aria-labelledby="fragment-tab" className="h-full">
+                <CodeEditor
+                  code={fragmentShader}
+                  onChange={setFragmentShader}
+                  errors={errors}
+                  label="fragment.glsl"
+                  shaderType="fragment"
+                />
+              </div>
             )}
           </div>
           
@@ -1093,7 +1114,7 @@ void main() {
       
       {/* Pipeline Steps */}
       <div className="p-4">
-        <div className="flex items-center justify-between mb-6 overflow-x-auto pb-2">
+        <div className="flex items-center justify-between mb-6 overflow-x-auto pb-2" role="group" aria-label="Pipeline steps navigation">
           {steps.map((s, i) => (
             <div key={i} className="flex items-center flex-shrink-0">
               <button
@@ -1107,6 +1128,8 @@ void main() {
                   backgroundColor: step >= i ? s.color : '#2a2a3a',
                   color: step >= i ? '#000' : '#666'
                 }}
+                aria-label={`Step ${i + 1}: ${s.title}`}
+                aria-current={step === i ? 'step' : undefined}
               >
                 {i + 1}
               </button>
@@ -1114,6 +1137,7 @@ void main() {
                 <div 
                   className="w-8 h-1 mx-1"
                   style={{ backgroundColor: step > i ? steps[i + 1].color : '#2a2a3a' }}
+                  aria-hidden="true"
                 />
               )}
             </div>
@@ -1135,11 +1159,12 @@ void main() {
         </div>
         
         {/* Navigation */}
-        <div className="flex justify-between mt-4">
+        <div className="flex justify-between mt-4" role="navigation" aria-label="Pipeline step navigation">
           <button
             onClick={() => setStep(Math.max(0, step - 1))}
             disabled={step === 0}
             className="px-4 py-2 bg-bg-secondary rounded text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-border transition-colors"
+            aria-label={step === 0 ? 'No previous step' : `Go to previous step: ${steps[step - 1]?.title}`}
           >
             Previous
           </button>
@@ -1147,6 +1172,7 @@ void main() {
             onClick={() => setStep(Math.min(steps.length - 1, step + 1))}
             disabled={step === steps.length - 1}
             className="px-4 py-2 bg-accent text-black rounded text-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-accent/80 transition-colors"
+            aria-label={step === steps.length - 1 ? 'No next step' : `Go to next step: ${steps[step + 1]?.title}`}
           >
             Next
           </button>
@@ -1202,19 +1228,20 @@ export function UVVisualizer() {
           </svg>
           <span className="font-bold text-white">UV Coordinate Visualizer</span>
         </div>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input
             type="checkbox"
             checked={showGrid}
             onChange={(e) => setShowGrid(e.target.checked)}
             className="accent-accent"
+            aria-label="Toggle UV grid overlay"
           />
           <span className="text-text-secondary">Show Grid</span>
         </label>
       </div>
       
       <div className="flex flex-col md:flex-row">
-        <div className="h-64 md:h-80 md:flex-1">
+        <div className="h-64 md:h-80 md:flex-1" role="img" aria-label="3D sphere showing UV coordinates mapped as colors">
           <Canvas camera={{ position: [2, 2, 2], fov: 50 }}>
             <color attach="background" args={['#0a0a0f']} />
             <mesh>
@@ -1315,16 +1342,20 @@ export function NormalVisualizer() {
           </svg>
           <span className="font-bold text-white">Normal Visualizer</span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2" role="group" aria-label="Normal space selection">
           <button
             onClick={() => setSpace('world')}
             className={`px-3 py-1 rounded text-sm ${space === 'world' ? 'bg-accent text-black' : 'bg-bg-card text-text-secondary'}`}
+            aria-pressed={space === 'world'}
+            aria-label="View normals in world space"
           >
             World Space
           </button>
           <button
             onClick={() => setSpace('view')}
             className={`px-3 py-1 rounded text-sm ${space === 'view' ? 'bg-accent text-black' : 'bg-bg-card text-text-secondary'}`}
+            aria-pressed={space === 'view'}
+            aria-label="View normals in view space"
           >
             View Space
           </button>
@@ -1448,9 +1479,9 @@ export function FresnelDemo() {
   * pow(1 - dot(V, N), power)`}
           </pre>
           
-          <div className="space-y-4">
+          <div className="space-y-4" role="group" aria-label="Fresnel effect controls">
             <div>
-              <label className="text-xs text-text-secondary block mb-1">Power: {power.toFixed(1)}</label>
+              <label id="power-label" className="text-xs text-text-secondary block mb-1">Power: {power.toFixed(1)}</label>
               <input
                 type="range"
                 min="0.5"
@@ -1459,10 +1490,14 @@ export function FresnelDemo() {
                 value={power}
                 onChange={(e) => setPower(parseFloat(e.target.value))}
                 className="w-full accent-accent"
+                aria-labelledby="power-label"
+                aria-valuemin={0.5}
+                aria-valuemax={5}
+                aria-valuenow={power}
               />
             </div>
             <div>
-              <label className="text-xs text-text-secondary block mb-1">Bias: {bias.toFixed(2)}</label>
+              <label id="bias-label" className="text-xs text-text-secondary block mb-1">Bias: {bias.toFixed(2)}</label>
               <input
                 type="range"
                 min="0"
@@ -1471,25 +1506,31 @@ export function FresnelDemo() {
                 value={bias}
                 onChange={(e) => setBias(parseFloat(e.target.value))}
                 className="w-full accent-accent"
+                aria-labelledby="bias-label"
+                aria-valuemin={0}
+                aria-valuemax={1}
+                aria-valuenow={bias}
               />
             </div>
             <div className="flex gap-4">
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Core</label>
+                <label id="core-label" className="text-xs text-text-secondary block mb-1">Core</label>
                 <input
                   type="color"
                   value={coreColor}
                   onChange={(e) => setCoreColor(e.target.value)}
                   className="w-10 h-8 rounded cursor-pointer"
+                  aria-labelledby="core-label"
                 />
               </div>
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Edge</label>
+                <label id="edge-label" className="text-xs text-text-secondary block mb-1">Edge</label>
                 <input
                   type="color"
                   value={edgeColor}
                   onChange={(e) => setEdgeColor(e.target.value)}
                   className="w-10 h-8 rounded cursor-pointer"
+                  aria-labelledby="edge-label"
                 />
               </div>
             </div>
