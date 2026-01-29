@@ -157,17 +157,75 @@ interface SceneLightProps {
   showHelpers: boolean;
 }
 
+// Separate component for directional light with helper
+function DirectionalLightWithHelper({ config, showHelpers }: { config: LightConfig; showHelpers: boolean }) {
+  const lightRef = useRef<THREE.DirectionalLight>(null!);
+  useHelper(showHelpers ? lightRef : null, THREE.DirectionalLightHelper, 1, config.color);
+  const color = new THREE.Color(config.color);
+  
+  return (
+    <directionalLight
+      ref={lightRef}
+      color={color}
+      intensity={config.intensity}
+      position={config.position}
+      castShadow={config.castShadow}
+      shadow-mapSize-width={2048}
+      shadow-mapSize-height={2048}
+      shadow-camera-far={50}
+      shadow-camera-left={-10}
+      shadow-camera-right={10}
+      shadow-camera-top={10}
+      shadow-camera-bottom={-10}
+    />
+  );
+}
+
+// Separate component for point light with helper
+function PointLightWithHelper({ config, showHelpers }: { config: LightConfig; showHelpers: boolean }) {
+  const lightRef = useRef<THREE.PointLight>(null!);
+  useHelper(showHelpers ? lightRef : null, THREE.PointLightHelper, 0.5, config.color);
+  const color = new THREE.Color(config.color);
+  
+  return (
+    <pointLight
+      ref={lightRef}
+      color={color}
+      intensity={config.intensity}
+      position={config.position}
+      distance={20}
+      decay={2}
+      castShadow={config.castShadow}
+      shadow-mapSize-width={1024}
+      shadow-mapSize-height={1024}
+    />
+  );
+}
+
+// Separate component for spot light with helper
+function SpotLightWithHelper({ config, showHelpers }: { config: LightConfig; showHelpers: boolean }) {
+  const lightRef = useRef<THREE.SpotLight>(null!);
+  useHelper(showHelpers ? lightRef : null, THREE.SpotLightHelper, config.color);
+  const color = new THREE.Color(config.color);
+  
+  return (
+    <spotLight
+      ref={lightRef}
+      color={color}
+      intensity={config.intensity}
+      position={config.position}
+      angle={config.angle || Math.PI / 6}
+      penumbra={config.penumbra || 0.5}
+      distance={30}
+      decay={2}
+      castShadow={config.castShadow}
+      shadow-mapSize-width={1024}
+      shadow-mapSize-height={1024}
+    />
+  );
+}
+
 function SceneLight({ config, showHelpers }: SceneLightProps) {
-  const lightRef = useRef<THREE.Light>(null);
-  const directionalRef = useRef<THREE.DirectionalLight>(null);
-  const spotRef = useRef<THREE.SpotLight>(null);
-  const pointRef = useRef<THREE.PointLight>(null);
-
-  // Helper visualization
-  useHelper(showHelpers && directionalRef.current ? directionalRef : { current: null }, THREE.DirectionalLightHelper, 1, config.color);
-  useHelper(showHelpers && spotRef.current ? spotRef : { current: null }, THREE.SpotLightHelper, config.color);
-  useHelper(showHelpers && pointRef.current ? pointRef : { current: null }, THREE.PointLightHelper, 0.5, config.color);
-
   if (!config.enabled) return null;
 
   const color = new THREE.Color(config.color);
@@ -177,54 +235,13 @@ function SceneLight({ config, showHelpers }: SceneLightProps) {
       return <ambientLight color={color} intensity={config.intensity} />;
     
     case 'directional':
-      return (
-        <directionalLight
-          ref={directionalRef}
-          color={color}
-          intensity={config.intensity}
-          position={config.position}
-          castShadow={config.castShadow}
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-camera-far={50}
-          shadow-camera-left={-10}
-          shadow-camera-right={10}
-          shadow-camera-top={10}
-          shadow-camera-bottom={-10}
-        />
-      );
+      return <DirectionalLightWithHelper config={config} showHelpers={showHelpers} />;
     
     case 'point':
-      return (
-        <pointLight
-          ref={pointRef}
-          color={color}
-          intensity={config.intensity}
-          position={config.position}
-          distance={20}
-          decay={2}
-          castShadow={config.castShadow}
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-        />
-      );
+      return <PointLightWithHelper config={config} showHelpers={showHelpers} />;
     
     case 'spot':
-      return (
-        <spotLight
-          ref={spotRef}
-          color={color}
-          intensity={config.intensity}
-          position={config.position}
-          angle={config.angle || Math.PI / 6}
-          penumbra={config.penumbra || 0.5}
-          distance={30}
-          decay={2}
-          castShadow={config.castShadow}
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-        />
-      );
+      return <SpotLightWithHelper config={config} showHelpers={showHelpers} />;
     
     default:
       return null;
@@ -292,6 +309,23 @@ function FormulaDisplay({ lights, material, viewMode }: FormulaDisplayProps) {
 
   const totalAmbient = ambientLights.reduce((sum, l) => sum + l.intensity, 0);
   
+  // Determine which components to show
+  const showAmbient = viewMode === 'ambient' || viewMode === 'combined';
+  const showDiffuse = viewMode === 'diffuse' || viewMode === 'combined';
+  const showSpecular = viewMode === 'specular' || viewMode === 'combined';
+  
+  // Build formula parts
+  const formulaParts: React.ReactNode[] = [];
+  if (showAmbient) {
+    formulaParts.push(<span key="ambient" className="text-[#4ec9b0]">I_ambient</span>);
+  }
+  if (showDiffuse) {
+    formulaParts.push(<span key="diffuse" className="text-[#dcdcaa]">I_diffuse</span>);
+  }
+  if (showSpecular) {
+    formulaParts.push(<span key="specular" className="text-[#ce9178]">I_specular</span>);
+  }
+  
   return (
     <div className="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a] font-mono text-sm">
       <div className="text-[#6a9955] mb-2">// Phong Lighting Model</div>
@@ -300,21 +334,12 @@ function FormulaDisplay({ lights, material, viewMode }: FormulaDisplayProps) {
         <span className="text-[#c586c0]">I</span>
         <span className="text-[#9cdcfe]">_total</span>
         <span className="text-white"> = </span>
-        {viewMode === 'ambient' || viewMode === 'combined' ? (
-          <span className="text-[#4ec9b0]">I_ambient</span>
-        ) : null}
-        {(viewMode === 'diffuse' || viewMode === 'combined') && (viewMode === 'ambient' || viewMode === 'combined') ? (
-          <span className="text-white"> + </span>
-        ) : null}
-        {viewMode === 'diffuse' || viewMode === 'combined' ? (
-          <span className="text-[#dcdcaa]">I_diffuse</span>
-        ) : null}
-        {(viewMode === 'specular' || viewMode === 'combined') && (viewMode === 'diffuse' || viewMode === 'combined' || viewMode === 'ambient') ? (
-          <span className="text-white"> + </span>
-        ) : null}
-        {viewMode === 'specular' || viewMode === 'combined' ? (
-          <span className="text-[#ce9178]">I_specular</span>
-        ) : null}
+        {formulaParts.map((part, i) => (
+          <span key={i}>
+            {i > 0 && <span className="text-white"> + </span>}
+            {part}
+          </span>
+        ))}
       </div>
       
       <div className="space-y-2 text-xs">
@@ -373,9 +398,11 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
           <button
             onClick={() => onUpdate(light.id, { enabled: !light.enabled })}
             className={`p-1 rounded transition-colors ${light.enabled ? 'text-[#00b894]' : 'text-[#6a6a7a]'}`}
-            title={light.enabled ? 'Disable' : 'Enable'}
+            title={light.enabled ? 'Disable light' : 'Enable light'}
+            aria-label={`${light.enabled ? 'Disable' : 'Enable'} ${light.type} light`}
+            aria-pressed={light.enabled}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               {light.enabled ? (
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
               ) : (
@@ -387,8 +414,9 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
             onClick={() => onRemove(light.id)}
             className="p-1 text-[#e17055] hover:text-[#ff6b6b] transition-colors"
             title="Remove light"
+            aria-label={`Remove ${light.type} light`}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             </svg>
           </button>
@@ -397,20 +425,23 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
       
       {/* Color picker */}
       <div className="flex items-center gap-2 mb-2">
-        <label className="text-xs text-text-secondary w-16">Color</label>
+        <label htmlFor={`color-${light.id}`} className="text-xs text-text-secondary w-16">Color</label>
         <input
+          id={`color-${light.id}`}
           type="color"
           value={light.color}
           onChange={(e) => onUpdate(light.id, { color: e.target.value })}
           className="w-8 h-6 rounded cursor-pointer bg-transparent border-0"
+          aria-label={`${light.type} light color`}
         />
-        <span className="text-xs font-mono text-[#6a6a7a]">{light.color}</span>
+        <span className="text-xs font-mono text-[#6a6a7a]" aria-hidden="true">{light.color}</span>
       </div>
       
       {/* Intensity slider */}
       <div className="flex items-center gap-2 mb-2">
-        <label className="text-xs text-text-secondary w-16">Intensity</label>
+        <label htmlFor={`intensity-${light.id}`} className="text-xs text-text-secondary w-16">Intensity</label>
         <input
+          id={`intensity-${light.id}`}
           type="range"
           min="0"
           max="3"
@@ -418,17 +449,22 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
           value={light.intensity}
           onChange={(e) => onUpdate(light.id, { intensity: parseFloat(e.target.value) })}
           className="flex-1 h-1 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-accent"
+          aria-label={`${light.type} light intensity`}
+          aria-valuemin={0}
+          aria-valuemax={3}
+          aria-valuenow={light.intensity}
         />
-        <span className="text-xs font-mono text-[#6a6a7a] w-8">{light.intensity.toFixed(1)}</span>
+        <span className="text-xs font-mono text-[#6a6a7a] w-8" aria-hidden="true">{light.intensity.toFixed(1)}</span>
       </div>
       
       {/* Position controls for non-ambient lights */}
       {light.type !== 'ambient' && (
-        <div className="space-y-1">
-          {['x', 'y', 'z'].map((axis, i) => (
+        <div className="space-y-1" role="group" aria-label={`${light.type} light position`}>
+          {(['x', 'y', 'z'] as const).map((axis, i) => (
             <div key={axis} className="flex items-center gap-2">
-              <label className="text-xs text-text-secondary w-16 uppercase">{axis}</label>
+              <label htmlFor={`pos-${axis}-${light.id}`} className="text-xs text-text-secondary w-16 uppercase">{axis}</label>
               <input
+                id={`pos-${axis}-${light.id}`}
                 type="range"
                 min="-10"
                 max="10"
@@ -440,8 +476,12 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
                   onUpdate(light.id, { position: newPos });
                 }}
                 className="flex-1 h-1 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-accent"
+                aria-label={`${light.type} light ${axis} position`}
+                aria-valuemin={-10}
+                aria-valuemax={10}
+                aria-valuenow={light.position[i]}
               />
-              <span className="text-xs font-mono text-[#6a6a7a] w-8">{light.position[i].toFixed(1)}</span>
+              <span className="text-xs font-mono text-[#6a6a7a] w-8" aria-hidden="true">{light.position[i].toFixed(1)}</span>
             </div>
           ))}
         </div>
@@ -449,10 +489,11 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
       
       {/* Spotlight-specific controls */}
       {light.type === 'spot' && (
-        <div className="mt-2 pt-2 border-t border-[#2a2a3a] space-y-1">
+        <div className="mt-2 pt-2 border-t border-[#2a2a3a] space-y-1" role="group" aria-label="Spotlight settings">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-text-secondary w-16">Angle</label>
+            <label htmlFor={`angle-${light.id}`} className="text-xs text-text-secondary w-16">Angle</label>
             <input
+              id={`angle-${light.id}`}
               type="range"
               min="0.1"
               max="1.5"
@@ -460,12 +501,17 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
               value={light.angle || Math.PI / 6}
               onChange={(e) => onUpdate(light.id, { angle: parseFloat(e.target.value) })}
               className="flex-1 h-1 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-accent"
+              aria-label="Spotlight cone angle"
+              aria-valuemin={0.1}
+              aria-valuemax={1.5}
+              aria-valuenow={light.angle || Math.PI / 6}
             />
-            <span className="text-xs font-mono text-[#6a6a7a] w-8">{((light.angle || Math.PI / 6) * 180 / Math.PI).toFixed(0)}°</span>
+            <span className="text-xs font-mono text-[#6a6a7a] w-8" aria-hidden="true">{((light.angle || Math.PI / 6) * 180 / Math.PI).toFixed(0)}°</span>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-text-secondary w-16">Penumbra</label>
+            <label htmlFor={`penumbra-${light.id}`} className="text-xs text-text-secondary w-16">Penumbra</label>
             <input
+              id={`penumbra-${light.id}`}
               type="range"
               min="0"
               max="1"
@@ -473,8 +519,12 @@ function LightControl({ light, onUpdate, onRemove }: LightControlProps) {
               value={light.penumbra || 0.5}
               onChange={(e) => onUpdate(light.id, { penumbra: parseFloat(e.target.value) })}
               className="flex-1 h-1 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-accent"
+              aria-label="Spotlight edge softness"
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={light.penumbra || 0.5}
             />
-            <span className="text-xs font-mono text-[#6a6a7a] w-8">{(light.penumbra || 0.5).toFixed(2)}</span>
+            <span className="text-xs font-mono text-[#6a6a7a] w-8" aria-hidden="true">{(light.penumbra || 0.5).toFixed(2)}</span>
           </div>
         </div>
       )}

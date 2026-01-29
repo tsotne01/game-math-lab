@@ -1,14 +1,14 @@
 import { useState, useRef, useCallback, Suspense, useEffect, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Line, Text } from '@react-three/drei';
-import { Physics, RigidBody, CuboidCollider, BallCollider, CapsuleCollider, ConeCollider, interactionGroups, useRapier, RapierRigidBody, RigidBodyProps, useRevoluteJoint, useSphericalJoint, usePrismaticJoint, useFixedJoint, vec3 } from '@react-three/rapier';
+import { Physics, RigidBody, CapsuleCollider, useRapier, RapierRigidBody, useRevoluteJoint, useSphericalJoint, usePrismaticJoint } from '@react-three/rapier';
 import * as THREE from 'three';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-type BodyType = 'dynamic' | 'static' | 'kinematicPosition';
+type BodyType = 'dynamic' | 'fixed' | 'kinematicPosition';
 type ShapeType = 'box' | 'sphere' | 'capsule' | 'cylinder' | 'cone';
 type JointType = 'revolute' | 'spherical' | 'prismatic' | 'fixed';
 
@@ -449,12 +449,12 @@ interface RagdollProps {
 }
 
 function Ragdoll({ position }: RagdollProps) {
-  const torsoRef = useRef<RapierRigidBody>(null);
-  const headRef = useRef<RapierRigidBody>(null);
-  const leftArmRef = useRef<RapierRigidBody>(null);
-  const rightArmRef = useRef<RapierRigidBody>(null);
-  const leftLegRef = useRef<RapierRigidBody>(null);
-  const rightLegRef = useRef<RapierRigidBody>(null);
+  const torsoRef = useRef<RapierRigidBody>(null!);
+  const headRef = useRef<RapierRigidBody>(null!);
+  const leftArmRef = useRef<RapierRigidBody>(null!);
+  const rightArmRef = useRef<RapierRigidBody>(null!);
+  const leftLegRef = useRef<RapierRigidBody>(null!);
+  const rightLegRef = useRef<RapierRigidBody>(null!);
   
   // Joints
   useSphericalJoint(torsoRef, headRef, [
@@ -586,8 +586,8 @@ function CollisionShapeComparison({ position }: ShapeComparisonProps) {
 // ============================================================================
 
 function RevoluteJointDemo({ position }: { position: [number, number, number] }) {
-  const anchorRef = useRef<RapierRigidBody>(null);
-  const pendulumRef = useRef<RapierRigidBody>(null);
+  const anchorRef = useRef<RapierRigidBody>(null!);
+  const pendulumRef = useRef<RapierRigidBody>(null!);
   
   useRevoluteJoint(anchorRef, pendulumRef, [
     [0, 0, 0],
@@ -617,8 +617,8 @@ function RevoluteJointDemo({ position }: { position: [number, number, number] })
 }
 
 function SphericalJointDemo({ position }: { position: [number, number, number] }) {
-  const anchorRef = useRef<RapierRigidBody>(null);
-  const ballRef = useRef<RapierRigidBody>(null);
+  const anchorRef = useRef<RapierRigidBody>(null!);
+  const ballRef = useRef<RapierRigidBody>(null!);
   
   useSphericalJoint(anchorRef, ballRef, [
     [0, 0, 0],
@@ -647,8 +647,8 @@ function SphericalJointDemo({ position }: { position: [number, number, number] }
 }
 
 function PrismaticJointDemo({ position }: { position: [number, number, number] }) {
-  const anchorRef = useRef<RapierRigidBody>(null);
-  const sliderRef = useRef<RapierRigidBody>(null);
+  const anchorRef = useRef<RapierRigidBody>(null!);
+  const sliderRef = useRef<RapierRigidBody>(null!);
   
   usePrismaticJoint(anchorRef, sliderRef, [
     [0, 0, 0],
