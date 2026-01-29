@@ -611,22 +611,24 @@ export default function MeshEditor() {
   ];
 
   return (
-    <div className="bg-bg-card rounded-xl border border-border overflow-hidden">
+    <div className="bg-bg-card rounded-xl border border-border overflow-hidden" role="application" aria-label="3D Mesh Editor">
       {/* Toolbar */}
       <div className="p-4 border-b border-border bg-bg-secondary">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-4" role="toolbar" aria-label="Primitive shape selection">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Shape primitives">
             {primitiveButtons.map(({ type, label, icon }) => (
               <button
                 key={type}
                 onClick={() => setPrimitive(type)}
+                aria-label={`Select ${label} primitive`}
+                aria-pressed={primitive === type}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   primitive === type
                     ? 'bg-accent text-black'
                     : 'bg-bg-card text-text-secondary hover:text-white border border-border'
                 }`}
               >
-                {icon}
+                <span aria-hidden="true">{icon}</span>
                 {label}
               </button>
             ))}
@@ -658,20 +660,22 @@ export default function MeshEditor() {
         </div>
 
         {/* Side Panel */}
-        <div className="w-full lg:w-80 p-4 border-t lg:border-t-0 lg:border-l border-border space-y-4 overflow-y-auto max-h-[500px]">
+        <div className="w-full lg:w-80 p-4 border-t lg:border-t-0 lg:border-l border-border space-y-4 overflow-y-auto max-h-[500px]" role="region" aria-label="Mesh controls and information">
           {/* Display Options */}
-          <div className="bg-bg-secondary rounded-lg p-4 border border-border">
-            <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <fieldset className="bg-bg-secondary rounded-lg p-4 border border-border">
+            <legend className="sr-only">Display options</legend>
+            <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2" aria-hidden="true">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
               Display Options
             </h4>
-            <div className="space-y-2">
+            <div className="space-y-2" role="group">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showWireframe}
                   onChange={(e) => setShowWireframe(e.target.checked)}
                   className="w-4 h-4 rounded border-border bg-bg-card accent-accent"
+                  aria-describedby="wireframe-desc"
                 />
                 <span className="text-sm text-text-secondary">Wireframe</span>
               </label>
@@ -681,6 +685,7 @@ export default function MeshEditor() {
                   checked={showVertices}
                   onChange={(e) => setShowVertices(e.target.checked)}
                   className="w-4 h-4 rounded border-border bg-bg-card accent-accent"
+                  aria-describedby="vertices-desc"
                 />
                 <span className="text-sm text-text-secondary">Show Vertices</span>
               </label>
