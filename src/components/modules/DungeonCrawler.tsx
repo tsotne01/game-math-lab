@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { 
   Play, Pause, RotateCcw, Eye, EyeOff, 
   Grid3X3, Footprints, ChevronRight, ChevronLeft,
-  Zap, Heart, Target, Map as MapIcon, StepForward, SkipForward, Square
+  Zap, Heart, Target, Map as MapIcon, StepForward, Square
 } from 'lucide-react';
 
 // ============ TYPES ============

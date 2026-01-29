@@ -658,6 +658,8 @@ export function EasingCurveGraph() {
         width={500}
         height={400}
         className="w-full rounded-lg"
+        role="img"
+        aria-label={`Easing curve graph showing ${selectedEasing} function. Input t: ${t.toFixed(2)}`}
       />
       <div className="mt-4 space-y-3">
         <div className="flex items-center gap-3">
@@ -665,6 +667,7 @@ export function EasingCurveGraph() {
             value={selectedEasing}
             onChange={(e) => setSelectedEasing(e.target.value)}
             className="bg-bg-secondary text-white px-3 py-2 rounded-lg border border-border"
+            aria-label="Select easing function to visualize"
           >
             {easingOptions.map(name => (
               <option key={name} value={name}>{name}</option>
@@ -673,6 +676,7 @@ export function EasingCurveGraph() {
           <button
             onClick={() => { setT(0); setPlaying(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-bg-primary rounded-lg transition-colors"
+            aria-label="Animate easing curve"
           >
             <Play className="w-4 h-4" />
             Animate
@@ -686,6 +690,7 @@ export function EasingCurveGraph() {
           value={t}
           onChange={(e) => { setT(parseFloat(e.target.value)); setPlaying(false); }}
           className="w-full accent-[#00b894]"
+          aria-label="Time value slider"
         />
       </div>
     </div>
@@ -1858,6 +1863,8 @@ export function CutsceneCreator() {
         width={650}
         height={360}
         className="w-full rounded-lg"
+        role="img"
+        aria-label="Cutscene animation preview showing chained animations"
       />
 
       {/* Sequence timeline */}
@@ -1867,7 +1874,11 @@ export function CutsceneCreator() {
           <span className="text-sm font-medium text-white">Animation Sequence</span>
         </div>
         
-        <div className="relative h-12 bg-[#1a1a2e] rounded-lg overflow-hidden mb-3">
+        <div 
+          className="relative h-12 bg-[#1a1a2e] rounded-lg overflow-hidden mb-3"
+          role="list"
+          aria-label="Animation sequence timeline"
+        >
           {sequence.map((anim, i) => {
             const colors = ['#e17055', '#fdcb6e', '#00b894', '#74b9ff', '#6c5ce7', '#a29bfe'];
             const left = (anim.start / totalDuration) * 100;
@@ -1875,12 +1886,15 @@ export function CutsceneCreator() {
             return (
               <div
                 key={i}
-                className="absolute top-1 bottom-1 rounded flex items-center justify-center text-xs font-medium text-white overflow-hidden"
+                className="absolute top-1 bottom-1 rounded flex items-center justify-center text-xs font-medium text-white overflow-hidden cursor-pointer hover:brightness-110"
                 style={{
                   left: `${left}%`,
                   width: `${width}%`,
                   backgroundColor: colors[i % colors.length],
                 }}
+                role="listitem"
+                aria-label={`${anim.name}: ${anim.start}s to ${anim.end}s, ${anim.easing} easing`}
+                onClick={() => { setGlobalT(anim.start / totalDuration); setPlaying(false); }}
               >
                 {anim.name}
               </div>
@@ -1889,8 +1903,9 @@ export function CutsceneCreator() {
           
           {/* Playhead */}
           <div
-            className="absolute top-0 w-1 h-full bg-white"
+            className="absolute top-0 w-1 h-full bg-white pointer-events-none"
             style={{ left: `${globalT * 100}%` }}
+            aria-hidden="true"
           />
         </div>
 
@@ -1902,6 +1917,7 @@ export function CutsceneCreator() {
           value={globalT}
           onChange={(e) => { setGlobalT(parseFloat(e.target.value)); setPlaying(false); }}
           className="w-full accent-white"
+          aria-label="Animation sequence timeline scrubber"
         />
       </div>
 
@@ -1909,6 +1925,7 @@ export function CutsceneCreator() {
         <button
           onClick={() => { if (globalT >= 1) setGlobalT(0); setPlaying(!playing); lastTimeRef.current = 0; }}
           className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-bg-primary rounded-lg transition-colors"
+          aria-label={playing ? 'Pause sequence' : 'Play animation sequence'}
         >
           {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           {playing ? 'Pause' : 'Play Sequence'}
@@ -1916,6 +1933,7 @@ export function CutsceneCreator() {
         <button
           onClick={reset}
           className="flex items-center gap-2 px-4 py-2 bg-bg-secondary hover:bg-bg-secondary/80 text-text-secondary rounded-lg transition-colors"
+          aria-label="Reset sequence to beginning"
         >
           <RotateCcw className="w-4 h-4" />
           Reset

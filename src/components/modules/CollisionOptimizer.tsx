@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Grid3X3, TreeDeciduous, Zap, Eye, EyeOff, Gauge, Activity, Box, Circle, Layers, GitBranch } from 'lucide-react';
+import { Play, Pause, RotateCcw, Grid3X3, Zap, Eye, EyeOff, Gauge, Activity, Box, Circle, Layers, GitBranch } from 'lucide-react';
 
 // ============== TYPES ==============
 interface Vec2 {
