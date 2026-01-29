@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Spline, Circle, Square, Layers, ChevronRight, Timer, Palette, Move, RotateCw, Maximize, Film, PlusCircle, Trash2, GripVertical } from 'lucide-react';
+import { Play, Pause, RotateCcw, Zap, TrendingUp, Timer, Palette, Move, RotateCw, Maximize, Film, Copy, Check } from 'lucide-react';
 
 // ============== TYPES ==============
 interface Vec2 {
@@ -276,31 +276,54 @@ export function LerpDemo() {
     draw();
   }, [draw]);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const distToStart = Math.hypot(x - startPos.x, y - startPos.y);
-    const distToEnd = Math.hypot(x - endPos.x, y - endPos.y);
-
-    if (distToStart < 20) setDragging('start');
-    else if (distToEnd < 20) setDragging('end');
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    let clientX: number, clientY: number;
+    if ('touches' in e) {
+      clientX = e.touches[0]?.clientX ?? e.changedTouches[0]?.clientX ?? 0;
+      clientY = e.touches[0]?.clientY ?? e.changedTouches[0]?.clientY ?? 0;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+
+    const distToStart = Math.hypot(coords.x - startPos.x, coords.y - startPos.y);
+    const distToEnd = Math.hypot(coords.x - endPos.x, coords.y - endPos.y);
+
+    if (distToStart < 25) setDragging('start');
+    else if (distToEnd < 25) setDragging('end');
+  };
+
+  const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!dragging) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(20, Math.min(canvas.width - 20, e.clientX - rect.left));
-    const y = Math.max(20, Math.min(canvas.height - 20, e.clientY - rect.top));
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+    
+    const x = Math.max(20, Math.min(canvas.width - 20, coords.x));
+    const y = Math.max(20, Math.min(canvas.height - 20, coords.y));
 
     if (dragging === 'start') setStartPos({ x, y });
     else setEndPos({ x, y });
   };
+
+  const handlePointerUp = () => setDragging(null);
 
   return (
     <div className="bg-bg-card rounded-xl p-4">
@@ -308,11 +331,16 @@ export function LerpDemo() {
         ref={canvasRef}
         width={600}
         height={320}
-        className="w-full rounded-lg cursor-crosshair"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={() => setDragging(null)}
-        onMouseLeave={() => setDragging(null)}
+        className="w-full rounded-lg cursor-crosshair touch-none"
+        role="img"
+        aria-label="Linear interpolation demo canvas. Drag points A and B to change positions."
+        onMouseDown={handlePointerDown}
+        onMouseMove={handlePointerMove}
+        onMouseUp={handlePointerUp}
+        onMouseLeave={handlePointerUp}
+        onTouchStart={handlePointerDown}
+        onTouchMove={handlePointerMove}
+        onTouchEnd={handlePointerUp}
       />
       <div className="mt-4 space-y-3">
         <div className="flex items-center gap-4">
@@ -441,11 +469,14 @@ export function EasingComparison() {
         width={700}
         height={760}
         className="w-full rounded-lg"
+        role="img"
+        aria-label="Easing comparison chart showing different easing functions animated side by side"
       />
       <div className="mt-4 flex items-center gap-3">
         <button
           onClick={() => { if (t >= 1) setT(0); setPlaying(!playing); lastTimeRef.current = 0; }}
           className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-bg-primary rounded-lg transition-colors"
+          aria-label={playing ? 'Pause comparison animation' : 'Play comparison animation'}
         >
           {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           {playing ? 'Pause' : 'Play'}
@@ -770,30 +801,51 @@ export function BezierEditor() {
     draw();
   }, [draw]);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    let clientX: number, clientY: number;
+    if ('touches' in e) {
+      clientX = e.touches[0]?.clientX ?? e.changedTouches[0]?.clientX ?? 0;
+      clientY = e.touches[0]?.clientY ?? e.changedTouches[0]?.clientY ?? 0;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
 
     const activePoints = curveType === 'quadratic' ? points.slice(0, 3) : points;
     for (let i = 0; i < activePoints.length; i++) {
-      const dist = Math.hypot(x - activePoints[i].x, y - activePoints[i].y);
-      if (dist < 15) {
+      const dist = Math.hypot(coords.x - activePoints[i].x, coords.y - activePoints[i].y);
+      if (dist < 20) {
         setDragging(i);
         return;
       }
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (dragging === null) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(10, Math.min(canvas.width - 10, e.clientX - rect.left));
-    const y = Math.max(10, Math.min(canvas.height - 10, e.clientY - rect.top));
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+    
+    const x = Math.max(10, Math.min(canvas.width - 10, coords.x));
+    const y = Math.max(10, Math.min(canvas.height - 10, coords.y));
 
     setPoints(prev => {
       const newPoints = [...prev];
@@ -802,17 +854,24 @@ export function BezierEditor() {
     });
   };
 
+  const handlePointerUp = () => setDragging(null);
+
   return (
     <div className="bg-bg-card rounded-xl p-4">
       <canvas
         ref={canvasRef}
         width={600}
         height={360}
-        className="w-full rounded-lg cursor-crosshair"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={() => setDragging(null)}
-        onMouseLeave={() => setDragging(null)}
+        className="w-full rounded-lg cursor-crosshair touch-none"
+        role="img"
+        aria-label="Bezier curve editor. Drag control points to shape the curve."
+        onMouseDown={handlePointerDown}
+        onMouseMove={handlePointerMove}
+        onMouseUp={handlePointerUp}
+        onMouseLeave={handlePointerUp}
+        onTouchStart={handlePointerDown}
+        onTouchMove={handlePointerMove}
+        onTouchEnd={handlePointerUp}
       />
       <div className="mt-4 space-y-3">
         <div className="flex items-center gap-4">
@@ -991,29 +1050,50 @@ export function SplineEditor() {
     return () => cancelAnimationFrame(animRef.current);
   }, [playing]);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    let clientX: number, clientY: number;
+    if ('touches' in e) {
+      clientX = e.touches[0]?.clientX ?? e.changedTouches[0]?.clientX ?? 0;
+      clientY = e.touches[0]?.clientY ?? e.changedTouches[0]?.clientY ?? 0;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
 
     for (let i = 0; i < points.length; i++) {
-      const dist = Math.hypot(x - points[i].x, y - points[i].y);
-      if (dist < 15) {
+      const dist = Math.hypot(coords.x - points[i].x, coords.y - points[i].y);
+      if (dist < 20) {
         setDragging(i);
         return;
       }
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (dragging === null) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(10, Math.min(canvas.width - 10, e.clientX - rect.left));
-    const y = Math.max(10, Math.min(canvas.height - 10, e.clientY - rect.top));
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+    
+    const x = Math.max(10, Math.min(canvas.width - 10, coords.x));
+    const y = Math.max(10, Math.min(canvas.height - 10, coords.y));
 
     setPoints(prev => {
       const newPoints = [...prev];
@@ -1022,24 +1102,23 @@ export function SplineEditor() {
     });
   };
 
+  const handlePointerUp = () => setDragging(null);
+
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
 
     // Check if clicking on existing point to remove
     for (let i = 0; i < points.length; i++) {
-      const dist = Math.hypot(x - points[i].x, y - points[i].y);
-      if (dist < 15 && points.length > 4) {
+      const dist = Math.hypot(coords.x - points[i].x, coords.y - points[i].y);
+      if (dist < 20 && points.length > 4) {
         setPoints(prev => prev.filter((_, idx) => idx !== i));
         return;
       }
     }
 
     // Add new point
-    setPoints(prev => [...prev, { x, y }]);
+    setPoints(prev => [...prev, { x: coords.x, y: coords.y }]);
   };
 
   return (
@@ -1048,11 +1127,16 @@ export function SplineEditor() {
         ref={canvasRef}
         width={640}
         height={360}
-        className="w-full rounded-lg cursor-crosshair"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={() => setDragging(null)}
-        onMouseLeave={() => setDragging(null)}
+        className="w-full rounded-lg cursor-crosshair touch-none"
+        role="img"
+        aria-label="Catmull-Rom spline editor. Drag points to reshape. Double-click to add or remove points."
+        onMouseDown={handlePointerDown}
+        onMouseMove={handlePointerMove}
+        onMouseUp={handlePointerUp}
+        onMouseLeave={handlePointerUp}
+        onTouchStart={handlePointerDown}
+        onTouchMove={handlePointerMove}
+        onTouchEnd={handlePointerUp}
         onDoubleClick={handleDoubleClick}
       />
       <div className="mt-4 space-y-3">
@@ -1336,24 +1420,107 @@ export default function TweenEngine() {
     lastTimeRef.current = 0;
   };
 
+  // Keyboard support for timeline
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 0.1 : 0.01;
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault();
+        setT(prev => Math.max(0, prev - step));
+        setPlaying(false);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        setT(prev => Math.min(1, prev + step));
+        setPlaying(false);
+        break;
+      case ' ':
+        e.preventDefault();
+        togglePlay();
+        break;
+      case 'Home':
+        e.preventDefault();
+        reset();
+        break;
+    }
+  };
+
+  // Generate code for current animation
+  const [copied, setCopied] = useState(false);
+  const generateCode = () => {
+    const anim = animations[activeAnimIndex];
+    if (!anim) return '';
+    
+    const keyframesCode = anim.keyframes.map((kf, i) => 
+      `  { t: ${kf.t}, x: ${kf.x}, y: ${kf.y}, scale: ${kf.scale}, rotation: ${kf.rotation}, color: { r: ${kf.color.r}, g: ${kf.color.g}, b: ${kf.color.b} }, easing: '${kf.easing}' }`
+    ).join(',\n');
+
+    return `const animation = {
+  name: '${anim.name}',
+  duration: ${anim.duration},
+  keyframes: [
+${keyframesCode}
+  ]
+};
+
+// Easing function
+const ${selectedEasing} = ${easingFunctions[selectedEasing].toString()};
+
+// Interpolate between keyframes
+function getState(animation, t) {
+  const keyframes = animation.keyframes;
+  // Find surrounding keyframes and interpolate...
+}`;
+  };
+
+  const copyCode = async () => {
+    const code = generateCode();
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      console.error('Failed to copy code');
+    }
+  };
+
   return (
-    <div className="bg-bg-card rounded-xl p-4">
+    <div 
+      className="bg-bg-card rounded-xl p-4"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="application"
+      aria-label="Tween Engine - Animation timeline and controls"
+    >
       <canvas
         ref={canvasRef}
         width={700}
         height={400}
         className="w-full rounded-lg"
+        role="img"
+        aria-label="Animation preview canvas showing keyframe interpolation"
       />
       
       {/* Timeline */}
       <div className="mt-4 bg-bg-secondary rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Timer className="w-4 h-4 text-accent" />
-          <span className="text-sm font-medium text-white">Timeline</span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Timer className="w-4 h-4 text-accent" />
+            <span className="text-sm font-medium text-white">Timeline</span>
+          </div>
+          <span className="text-xs text-text-secondary">Use ←→ keys to scrub, Space to play/pause</span>
         </div>
         
         {/* Timeline track */}
-        <div className="relative h-8 bg-[#1a1a2e] rounded-lg overflow-hidden mb-3">
+        <div 
+          className="relative h-8 bg-[#1a1a2e] rounded-lg overflow-hidden mb-3"
+          role="slider"
+          aria-label="Animation timeline"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(t * 100)}
+          aria-valuetext={`${(t * 100).toFixed(0)}% progress`}
+        >
           {/* Keyframe markers */}
           {animations[activeAnimIndex]?.keyframes.map((kf, i) => (
             <div
@@ -1364,6 +1531,9 @@ export default function TweenEngine() {
                 backgroundColor: rgbToHex(kf.color),
               }}
               title={`Keyframe ${i} (t=${kf.t})`}
+              role="button"
+              aria-label={`Jump to keyframe ${i}`}
+              onClick={() => { setT(kf.t); setPlaying(false); }}
             />
           ))}
           
@@ -1371,6 +1541,7 @@ export default function TweenEngine() {
           <div
             className="absolute top-0 w-0.5 h-full bg-[#e17055]"
             style={{ left: `${t * 100}%` }}
+            aria-hidden="true"
           />
         </div>
 
@@ -1382,6 +1553,7 @@ export default function TweenEngine() {
           value={t}
           onChange={(e) => { setT(parseFloat(e.target.value)); setPlaying(false); }}
           className="w-full accent-[#e17055]"
+          aria-label="Timeline scrubber"
         />
       </div>
 
@@ -1390,6 +1562,7 @@ export default function TweenEngine() {
         <button
           onClick={togglePlay}
           className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-bg-primary rounded-lg transition-colors"
+          aria-label={playing ? 'Pause animation' : 'Play animation'}
         >
           {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           {playing ? 'Pause' : 'Play'}
@@ -1397,17 +1570,20 @@ export default function TweenEngine() {
         <button
           onClick={reset}
           className="flex items-center gap-2 px-4 py-2 bg-bg-secondary hover:bg-bg-secondary/80 text-text-secondary rounded-lg transition-colors"
+          aria-label="Reset animation to beginning"
         >
           <RotateCcw className="w-4 h-4" />
           Reset
         </button>
         
         <div className="flex items-center gap-2">
-          <label className="text-sm text-text-secondary">Speed:</label>
+          <label htmlFor="speed-select" className="text-sm text-text-secondary">Speed:</label>
           <select
+            id="speed-select"
             value={speed}
             onChange={(e) => setSpeed(parseFloat(e.target.value))}
             className="bg-bg-secondary text-white px-2 py-1 rounded border border-border text-sm"
+            aria-label="Playback speed"
           >
             <option value={0.25}>0.25x</option>
             <option value={0.5}>0.5x</option>
@@ -1417,11 +1593,13 @@ export default function TweenEngine() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-text-secondary">Easing:</label>
+          <label htmlFor="easing-select" className="text-sm text-text-secondary">Easing:</label>
           <select
+            id="easing-select"
             value={selectedEasing}
             onChange={(e) => setSelectedEasing(e.target.value)}
             className="bg-bg-secondary text-white px-2 py-1 rounded border border-border text-sm"
+            aria-label="Easing function"
           >
             {easingOptions.map(name => (
               <option key={name} value={name}>{name}</option>
@@ -1432,9 +1610,20 @@ export default function TweenEngine() {
         <button
           onClick={() => setShowCurve(!showCurve)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${showCurve ? 'bg-[#6c5ce7] text-white' : 'bg-bg-secondary text-text-secondary'}`}
+          aria-pressed={showCurve}
+          aria-label="Toggle easing curve preview"
         >
           <TrendingUp className="w-4 h-4" />
           Curve
+        </button>
+
+        <button
+          onClick={copyCode}
+          className="flex items-center gap-2 px-3 py-2 bg-bg-secondary hover:bg-bg-secondary/80 text-text-secondary rounded-lg transition-colors ml-auto"
+          aria-label="Copy animation code to clipboard"
+        >
+          {copied ? <Check className="w-4 h-4 text-[#00b894]" /> : <Copy className="w-4 h-4" />}
+          {copied ? 'Copied!' : 'Copy Code'}
         </button>
       </div>
 

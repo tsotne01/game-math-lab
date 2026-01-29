@@ -436,6 +436,7 @@ export default function DungeonCrawler() {
   const [playerHealth, setPlayerHealth] = useState(100);
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
+  const [damageFlash, setDamageFlash] = useState(false);
   
   const gameRef = useRef<{
     player: Entity;
@@ -445,7 +446,18 @@ export default function DungeonCrawler() {
     running: boolean;
     keys: Set<string>;
     lastDamageTime: number;
+    spawnTime: number;
   } | null>(null);
+  
+  // Touch control handler
+  const handleTouchControl = useCallback((direction: string, isPressed: boolean) => {
+    if (!gameRef.current) return;
+    if (isPressed) {
+      gameRef.current.keys.add(direction);
+    } else {
+      gameRef.current.keys.delete(direction);
+    }
+  }, []);
 
   // Create initial dungeon layout
   const createDungeon = useCallback((levelNum: number): boolean[][] => {
@@ -568,6 +580,7 @@ export default function DungeonCrawler() {
       running: false,
       keys: new Set(),
       lastDamageTime: 0,
+      spawnTime: 0,
     };
     
     setPlayerHealth(100);
@@ -753,6 +766,10 @@ export default function DungeonCrawler() {
             game.lastDamageTime = frameCount;
             setPlayerHealth(player.health);
             
+            // Trigger damage flash effect
+            setDamageFlash(true);
+            setTimeout(() => setDamageFlash(false), 150);
+            
             if (player.health <= 0) {
               game.running = false;
               setGameState('defeat');
@@ -845,8 +862,20 @@ export default function DungeonCrawler() {
       );
       ctx.fill();
       
-      // Draw enemies
+      // Draw enemies with spawn indicators
       for (const enemy of game.enemies) {
+        // Spawn indicator (pulsing warning circle) - shown for first 90 frames
+        if (game.spawnTime < 90) {
+          const pulse = Math.sin(game.spawnTime * 0.2) * 0.3 + 0.5;
+          ctx.strokeStyle = `rgba(225, 112, 85, ${pulse})`;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.arc(enemy.x, enemy.y, 20 + pulse * 5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        
         ctx.fillStyle = COLORS.enemyGlow;
         ctx.beginPath();
         ctx.arc(enemy.x, enemy.y, 14, 0, Math.PI * 2);
@@ -862,6 +891,11 @@ export default function DungeonCrawler() {
         ctx.fillRect(enemy.x - 12, enemy.y - 18, 24, 4);
         ctx.fillStyle = '#e17055';
         ctx.fillRect(enemy.x - 12, enemy.y - 18, 24 * healthPercent, 4);
+      }
+      
+      // Update spawn time
+      if (game.running && game.spawnTime < 120) {
+        game.spawnTime++;
       }
       
       // Draw player
@@ -928,8 +962,10 @@ export default function DungeonCrawler() {
                 : 'bg-[#2a2a3a] text-[#6a6a7a]'
             }`}
             title="Toggle pathfinding visualization"
+            aria-label={showPathfinding ? 'Hide pathfinding visualization' : 'Show pathfinding visualization'}
+            aria-pressed={showPathfinding}
           >
-            <Footprints className="w-5 h-5" />
+            <Footprints className="w-5 h-5" aria-hidden="true" />
           </button>
           <button
             onClick={() => setShowGrid(!showGrid)}
@@ -939,8 +975,10 @@ export default function DungeonCrawler() {
                 : 'bg-[#2a2a3a] text-[#6a6a7a]'
             }`}
             title="Toggle grid"
+            aria-label={showGrid ? 'Hide grid' : 'Show grid'}
+            aria-pressed={showGrid}
           >
-            <Grid3X3 className="w-5 h-5" />
+            <Grid3X3 className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -953,7 +991,17 @@ export default function DungeonCrawler() {
           height={CANVAS_HEIGHT}
           className="w-full"
           style={{ aspectRatio: `${CANVAS_WIDTH}/${CANVAS_HEIGHT}` }}
+          role="img"
+          aria-label="Dungeon Crawler game canvas - use WASD or arrow keys to move the player"
         />
+        
+        {/* Damage Flash Overlay */}
+        {damageFlash && (
+          <div 
+            className="absolute inset-0 bg-red-500/30 pointer-events-none animate-pulse"
+            aria-hidden="true"
+          />
+        )}
         
         {/* Overlays */}
         {gameState === 'idle' && (
@@ -1005,17 +1053,84 @@ export default function DungeonCrawler() {
         )}
       </div>
       
-      {/* Controls */}
+      {/* Touch Controls for Mobile */}
+      {gameState === 'playing' && !isPaused && (
+        <div className="md:hidden p-4 bg-[#0a0a0f] border-t border-[#2a2a3a]">
+          <div className="flex justify-center items-center gap-2">
+            <div className="grid grid-cols-3 gap-1">
+              <div />
+              <button
+                className="w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center text-white active:bg-[#6c5ce7] touch-none select-none"
+                onTouchStart={() => handleTouchControl('w', true)}
+                onTouchEnd={() => handleTouchControl('w', false)}
+                onMouseDown={() => handleTouchControl('w', true)}
+                onMouseUp={() => handleTouchControl('w', false)}
+                onMouseLeave={() => handleTouchControl('w', false)}
+                aria-label="Move up"
+              >
+                ▲
+              </button>
+              <div />
+              <button
+                className="w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center text-white active:bg-[#6c5ce7] touch-none select-none"
+                onTouchStart={() => handleTouchControl('a', true)}
+                onTouchEnd={() => handleTouchControl('a', false)}
+                onMouseDown={() => handleTouchControl('a', true)}
+                onMouseUp={() => handleTouchControl('a', false)}
+                onMouseLeave={() => handleTouchControl('a', false)}
+                aria-label="Move left"
+              >
+                ◀
+              </button>
+              <button
+                className="w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center text-white active:bg-[#6c5ce7] touch-none select-none"
+                onTouchStart={() => handleTouchControl('s', true)}
+                onTouchEnd={() => handleTouchControl('s', false)}
+                onMouseDown={() => handleTouchControl('s', true)}
+                onMouseUp={() => handleTouchControl('s', false)}
+                onMouseLeave={() => handleTouchControl('s', false)}
+                aria-label="Move down"
+              >
+                ▼
+              </button>
+              <button
+                className="w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center text-white active:bg-[#6c5ce7] touch-none select-none"
+                onTouchStart={() => handleTouchControl('d', true)}
+                onTouchEnd={() => handleTouchControl('d', false)}
+                onMouseDown={() => handleTouchControl('d', true)}
+                onMouseUp={() => handleTouchControl('d', false)}
+                onMouseLeave={() => handleTouchControl('d', false)}
+                aria-label="Move right"
+              >
+                ▶
+              </button>
+            </div>
+            <button
+              onClick={() => setIsPaused(true)}
+              className="ml-4 w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center text-white active:bg-[#6c5ce7]"
+              aria-label="Pause game"
+            >
+              <Pause className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Controls Info */}
       <div className="p-4 bg-[#0a0a0f] border-t border-[#2a2a3a]">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="text-sm text-[#6a6a7a]">
             <span className="text-[#a0a0b0]">Controls:</span>{' '}
-            WASD or Arrow keys to move • SPACE to pause
+            <span className="hidden md:inline">WASD or Arrow keys to move • SPACE to pause</span>
+            <span className="md:hidden">Use buttons above to move</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="inline-block w-3 h-3 rounded-full bg-[#74b9ff]/60" /> Open Set
-            <span className="inline-block w-3 h-3 rounded-full bg-[#636e72]/60 ml-2" /> Closed Set
-            <span className="inline-block w-3 h-3 rounded bg-[#6c5ce7] ml-2" /> Path
+            <span className="inline-block w-3 h-3 rounded-full bg-[#74b9ff]/60" aria-hidden="true" /> 
+            <span>Open Set</span>
+            <span className="inline-block w-3 h-3 rounded-full bg-[#636e72]/60 ml-2" aria-hidden="true" /> 
+            <span>Closed Set</span>
+            <span className="inline-block w-3 h-3 rounded bg-[#6c5ce7] ml-2" aria-hidden="true" /> 
+            <span>Path</span>
           </div>
         </div>
       </div>
