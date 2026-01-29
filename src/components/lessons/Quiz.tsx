@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Target, Trophy, Dumbbell, ThumbsUp, PartyPopper, Check, X, Lightbulb } from 'lucide-react';
 
 // Question types
 interface MultipleChoiceQuestion {
@@ -209,10 +210,10 @@ function MultipleChoice({
               </span>
               <span className="flex-1">{option}</span>
               {showResult && isCorrect && (
-                <span className="text-2xl">✓</span>
+                <Check className="w-6 h-6" />
               )}
               {showResult && isSelected && !isCorrect && (
-                <span className="text-2xl">✗</span>
+                <X className="w-6 h-6" />
               )}
             </button>
           );
@@ -352,11 +353,11 @@ function Feedback({
     >
       <div className="flex items-start gap-4">
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center text-xl font-bold ${
+          className={`w-10 h-10 rounded-full flex items-center justify-center ${
             isCorrect ? 'bg-[#00b894]' : 'bg-[#e17055]'
           }`}
         >
-          {isCorrect ? '✓' : '✗'}
+          {isCorrect ? <Check className="w-5 h-5 text-white" /> : <X className="w-5 h-5 text-white" />}
         </div>
         <div className="flex-1">
           <h4
@@ -392,25 +393,27 @@ function Summary({
   const percentage = Math.round((score / total) * 100);
   
   let message = '';
-  let emoji = '';
+  let EmojiIcon = Dumbbell;
   
   if (percentage === 100) {
     message = 'Perfect score! You\'ve mastered this topic!';
-    emoji = '🏆';
+    EmojiIcon = Trophy;
   } else if (percentage >= 80) {
     message = 'Great job! You really understand this material!';
-    emoji = '🎉';
+    EmojiIcon = PartyPopper;
   } else if (percentage >= 60) {
     message = 'Good effort! Review the concepts you missed.';
-    emoji = '👍';
+    EmojiIcon = ThumbsUp;
   } else {
     message = 'Keep practicing! Review the lesson and try again.';
-    emoji = '💪';
+    EmojiIcon = Dumbbell;
   }
 
   return (
     <div className="text-center py-8 animate-fade-in">
-      <div className="text-6xl mb-4">{emoji}</div>
+      <div className="mb-4 flex justify-center">
+        <EmojiIcon className="w-16 h-16 text-accent" />
+      </div>
       <h3 className="text-3xl font-bold text-white mb-4">Quiz Complete!</h3>
       
       <div className="inline-flex items-center gap-4 bg-[#1a1a24] rounded-2xl px-8 py-6 mb-6">
@@ -539,7 +542,7 @@ export default function Quiz({ title, questions, onComplete }: QuizProps) {
       {/* Header */}
       <div className="bg-[#0a0a0f] px-6 py-4 border-b border-[#2a2a3a]">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🎯</span>
+          <Target className="w-6 h-6 text-accent" />
           <h2 className="text-xl font-bold text-white">{title}</h2>
         </div>
       </div>
@@ -586,8 +589,8 @@ export default function Quiz({ title, questions, onComplete }: QuizProps) {
       {/* Footer hint */}
       {!isComplete && !showResult && (
         <div className="px-6 py-3 bg-[#0a0a0f] border-t border-[#2a2a3a]">
-          <p className="text-[#4a4a5a] text-sm text-center">
-            💡 Tip: Use number keys (1-4) to select answers, Enter to continue
+          <p className="text-[#4a4a5a] text-sm text-center flex items-center justify-center gap-2">
+            <Lightbulb className="w-4 h-4" /> Tip: Use number keys (1-4) to select answers, Enter to continue
           </p>
         </div>
       )}

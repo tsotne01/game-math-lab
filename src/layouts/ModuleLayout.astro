@@ -21,11 +21,11 @@ const { title, moduleNumber, projectName, nextModule, prevModule } = Astro.props
 <BaseLayout title={`${title} | Game Math Lab`}>
   <div class="max-w-4xl mx-auto">
     <!-- Breadcrumb -->
-    <nav class="mb-6 text-sm text-text-secondary">
+    <nav class="mb-6 text-sm text-text-secondary flex items-center gap-2">
       <a href="/" class="hover:text-accent">Home</a>
-      <span class="mx-2">→</span>
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
       <a href="/#modules" class="hover:text-accent">Modules</a>
-      <span class="mx-2">→</span>
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
       <span class="text-text-primary">{title}</span>
     </nav>
 
@@ -36,7 +36,7 @@ const { title, moduleNumber, projectName, nextModule, prevModule } = Astro.props
       </span>
       <h1 class="text-4xl font-bold mb-3 gradient-text-hero">{title}</h1>
       <p class="text-xl text-accent flex items-center gap-2">
-        <span>🎯</span>
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
         Project: {projectName}
       </p>
     </header>
@@ -54,7 +54,7 @@ const { title, moduleNumber, projectName, nextModule, prevModule } = Astro.props
             href={prevModule.href}
             class="flex items-center gap-2 px-6 py-4 bg-bg-card border border-border rounded-xl hover:border-accent transition-colors group"
           >
-            <span class="text-text-secondary group-hover:text-accent transition-colors">←</span>
+            <svg class="w-5 h-5 text-text-secondary group-hover:text-accent transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             <div>
               <div class="text-xs text-text-secondary">Previous</div>
               <div class="font-semibold">{prevModule.title}</div>
@@ -71,14 +71,15 @@ const { title, moduleNumber, projectName, nextModule, prevModule } = Astro.props
               <div class="text-xs text-text-secondary">Next</div>
               <div class="font-semibold">{nextModule.title}</div>
             </div>
-            <span class="text-text-secondary group-hover:text-accent transition-colors">→</span>
+            <svg class="w-5 h-5 text-text-secondary group-hover:text-accent transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </a>
         ) : (
           <a 
             href="/"
             class="flex items-center gap-2 px-6 py-4 bg-accent text-white rounded-xl hover:bg-accent-hover transition-colors font-semibold"
           >
-            ✓ Complete Module
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Complete Module
           </a>
         )}
       </div>

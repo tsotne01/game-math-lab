@@ -36,9 +36,11 @@ function aabbCollision(rect1: { x: number; y: number; width: number; height: num
 }
 
 export default function Pong() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'won' | 'lost'>('idle');
   const [scores, setScores] = useState({ player: 0, ai: 0 });
+  const [dimensions, setDimensions] = useState({ width: 700, height: 400 });
   const keysRef = useRef<Set<string>>(new Set());
   const gameRef = useRef<{
     player: Paddle;
@@ -47,44 +49,64 @@ export default function Pong() {
     running: boolean;
   } | null>(null);
 
-  const width = 700;
-  const height = 400;
+  // Responsive resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth - 32;
+      const newWidth = Math.min(700, Math.max(320, containerWidth));
+      const newHeight = Math.round(newWidth * (400 / 700));
+      setDimensions({ width: newWidth, height: newHeight });
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const { width, height } = dimensions;
+  const scale = width / 700; // Scale factor for game elements
 
   const resetBall = useCallback(() => {
     if (!gameRef.current) return;
+    const ballS = BALL_SIZE * scale;
     gameRef.current.ball = {
-      x: width / 2 - BALL_SIZE / 2,
-      y: height / 2 - BALL_SIZE / 2,
-      size: BALL_SIZE,
-      vx: BALL_SPEED * (Math.random() > 0.5 ? 1 : -1),
-      vy: BALL_SPEED * (Math.random() - 0.5)
+      x: width / 2 - ballS / 2,
+      y: height / 2 - ballS / 2,
+      size: ballS,
+      vx: BALL_SPEED * scale * (Math.random() > 0.5 ? 1 : -1),
+      vy: BALL_SPEED * scale * (Math.random() - 0.5)
     };
-  }, []);
+  }, [width, height, scale]);
 
   const initGame = useCallback(() => {
+    const paddleH = PADDLE_HEIGHT * scale;
+    const paddleW = PADDLE_WIDTH * scale;
+    const ballS = BALL_SIZE * scale;
+    
     gameRef.current = {
       player: {
-        x: 30,
-        y: height / 2 - PADDLE_HEIGHT / 2,
-        width: PADDLE_WIDTH,
-        height: PADDLE_HEIGHT
+        x: 30 * scale,
+        y: height / 2 - paddleH / 2,
+        width: paddleW,
+        height: paddleH
       },
       ai: {
-        x: width - 30 - PADDLE_WIDTH,
-        y: height / 2 - PADDLE_HEIGHT / 2,
-        width: PADDLE_WIDTH,
-        height: PADDLE_HEIGHT
+        x: width - 30 * scale - paddleW,
+        y: height / 2 - paddleH / 2,
+        width: paddleW,
+        height: paddleH
       },
       ball: {
-        x: width / 2 - BALL_SIZE / 2,
-        y: height / 2 - BALL_SIZE / 2,
-        size: BALL_SIZE,
-        vx: BALL_SPEED,
-        vy: BALL_SPEED * (Math.random() - 0.5)
+        x: width / 2 - ballS / 2,
+        y: height / 2 - ballS / 2,
+        size: ballS,
+        vx: BALL_SPEED * scale,
+        vy: BALL_SPEED * scale * (Math.random() - 0.5)
       },
       running: false
     };
-  }, []);
+  }, [width, height, scale]);
 
   const startGame = useCallback(() => {
     initGame();
@@ -143,22 +165,24 @@ export default function Pong() {
     const update = () => {
       if (!gameRef.current?.running) return;
       const { player, ai, ball } = gameRef.current;
+      const scaledPaddleSpeed = PADDLE_SPEED * scale;
+      const scaledPaddleHeight = PADDLE_HEIGHT * scale;
 
       // Player movement
       if (keysRef.current.has('arrowup') || keysRef.current.has('w')) {
-        player.y = Math.max(0, player.y - PADDLE_SPEED);
+        player.y = Math.max(0, player.y - scaledPaddleSpeed);
       }
       if (keysRef.current.has('arrowdown') || keysRef.current.has('s')) {
-        player.y = Math.min(height - PADDLE_HEIGHT, player.y + PADDLE_SPEED);
+        player.y = Math.min(height - scaledPaddleHeight, player.y + scaledPaddleSpeed);
       }
 
       // AI movement
-      const aiCenter = ai.y + PADDLE_HEIGHT / 2;
+      const aiCenter = ai.y + scaledPaddleHeight / 2;
       const targetY = ball.y + ball.size / 2;
-      const aiSpeed = PADDLE_SPEED * 0.7;
+      const aiSpeed = scaledPaddleSpeed * 0.7;
       
       if (aiCenter < targetY - 10) {
-        ai.y = Math.min(height - PADDLE_HEIGHT, ai.y + aiSpeed);
+        ai.y = Math.min(height - scaledPaddleHeight, ai.y + aiSpeed);
       } else if (aiCenter > targetY + 10) {
         ai.y = Math.max(0, ai.y - aiSpeed);
       }
@@ -179,15 +203,15 @@ export default function Pong() {
       if (aabbCollision(ballRect, player) && ball.vx < 0) {
         ball.vx *= -1.05;
         ball.x = player.x + player.width;
-        const hitPos = (ball.y + ball.size / 2 - player.y) / PADDLE_HEIGHT;
-        ball.vy = (hitPos - 0.5) * BALL_SPEED * 2;
+        const hitPos = (ball.y + ball.size / 2 - player.y) / scaledPaddleHeight;
+        ball.vy = (hitPos - 0.5) * BALL_SPEED * scale * 2;
       }
 
       if (aabbCollision(ballRect, ai) && ball.vx > 0) {
         ball.vx *= -1.05;
         ball.x = ai.x - ball.size;
-        const hitPos = (ball.y + ball.size / 2 - ai.y) / PADDLE_HEIGHT;
-        ball.vy = (hitPos - 0.5) * BALL_SPEED * 2;
+        const hitPos = (ball.y + ball.size / 2 - ai.y) / scaledPaddleHeight;
+        ball.vy = (hitPos - 0.5) * BALL_SPEED * scale * 2;
       }
 
       // Scoring
@@ -299,30 +323,57 @@ export default function Pong() {
     };
   }, [gameState, scores, resetBall]);
 
+  // Touch controls for mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (gameState !== 'playing') return;
+    const touch = e.touches[0];
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const touchY = touch.clientY - rect.top;
+    const midY = height / 2;
+    if (touchY < midY) {
+      keysRef.current.add('arrowup');
+    } else {
+      keysRef.current.add('arrowdown');
+    }
+  }, [gameState, height]);
+
+  const handleTouchEnd = useCallback(() => {
+    keysRef.current.delete('arrowup');
+    keysRef.current.delete('arrowdown');
+  }, []);
+
   return (
-    <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
+    <div ref={containerRef} className="my-8 bg-[#1a1a24] rounded-xl p-4">
       <canvas 
         ref={canvasRef}
-        className="block mx-auto rounded-lg"
+        className="block mx-auto rounded-lg touch-none"
         style={{ width, height }}
         tabIndex={0}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        role="application"
+        aria-label="Pong game. Use arrow keys or W/S to move paddle."
       />
-      <div className="flex justify-center gap-4 mt-4">
+      <div className="flex flex-wrap justify-center gap-3 mt-4">
         <button
           onClick={startGame}
-          className="px-6 py-2 bg-[#6c5ce7] text-white font-semibold rounded-lg hover:bg-[#8677ed] transition-colors"
+          className="px-6 py-2 bg-[#6c5ce7] text-white font-semibold rounded-lg hover:bg-[#8677ed] transition-colors focus:outline-none focus:ring-2 focus:ring-[#6c5ce7] focus:ring-offset-2 focus:ring-offset-[#1a1a24]"
+          aria-label={gameState === 'playing' ? 'Restart game' : 'Start game'}
         >
           {gameState === 'playing' ? 'Restart' : 'Start Game'}
         </button>
         <button
           onClick={resetGame}
-          className="px-6 py-2 bg-[#2a2a3a] text-white font-semibold rounded-lg hover:bg-[#3a3a4a] transition-colors"
+          className="px-6 py-2 bg-[#2a2a3a] text-white font-semibold rounded-lg hover:bg-[#3a3a4a] transition-colors focus:outline-none focus:ring-2 focus:ring-[#6c5ce7] focus:ring-offset-2 focus:ring-offset-[#1a1a24]"
+          aria-label="Reset game"
         >
           Reset
         </button>
       </div>
       <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        ⬆️⬇️ Arrow keys or W/S to move. First to {WINNING_SCORE} wins!
+        ⬆️⬇️ Arrow keys, W/S, or tap top/bottom to move. First to {WINNING_SCORE} wins!
       </p>
     </div>
   );

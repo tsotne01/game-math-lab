@@ -69,10 +69,28 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number) 
 }
 
 export default function VectorVisualizer() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [mousePos, setMousePos] = useState<Vec2>({ x: 400, y: 150 });
-  const width = 600;
-  const height = 300;
+  const [mousePos, setMousePos] = useState<Vec2>({ x: 300, y: 150 });
+  const [dimensions, setDimensions] = useState({ width: 600, height: 300 });
+  
+  // Responsive resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth - 32; // account for padding
+      const width = Math.min(600, Math.max(300, containerWidth));
+      const height = Math.min(300, width * 0.5);
+      setDimensions({ width, height });
+      setMousePos({ x: width / 2 + 100, y: height / 2 });
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  const { width, height } = dimensions;
   const centerX = width / 2;
   const centerY = height / 2;
 
@@ -142,15 +160,25 @@ export default function VectorVisualizer() {
   }, [mousePos, centerX, centerY]);
 
   return (
-    <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
+    <div ref={containerRef} className="my-8 bg-[#1a1a24] rounded-xl p-4">
       <canvas 
         ref={canvasRef}
         onMouseMove={handleMouseMove}
-        className="block mx-auto rounded-lg cursor-crosshair"
+        onTouchMove={(e) => {
+          e.preventDefault();
+          const touch = e.touches[0];
+          const rect = canvasRef.current?.getBoundingClientRect();
+          if (rect) {
+            setMousePos({ x: touch.clientX - rect.left, y: touch.clientY - rect.top });
+          }
+        }}
+        className="block mx-auto rounded-lg cursor-crosshair touch-none"
         style={{ width, height }}
+        role="img"
+        aria-label="Interactive vector visualization. Move mouse or touch to see vector properties."
       />
       <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        🖱️ Move your mouse to see the vector from center to cursor
+        🖱️ Move your mouse (or touch) to see the vector from center to cursor
       </p>
     </div>
   );
@@ -158,10 +186,28 @@ export default function VectorVisualizer() {
 
 // Dot Product Visualizer
 export function DotProductVisualizer() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mousePos, setMousePos] = useState<Vec2>({ x: 400, y: 100 });
-  const width = 600;
-  const height = 300;
+  const [dimensions, setDimensions] = useState({ width: 600, height: 300 });
+  
+  // Responsive resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth - 32;
+      const width = Math.min(600, Math.max(300, containerWidth));
+      const height = Math.min(300, width * 0.5);
+      setDimensions({ width, height });
+      setMousePos({ x: width / 2 + 100, y: height / 2 - 50 });
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  const { width, height } = dimensions;
   const centerX = width / 2;
   const centerY = height / 2;
   const fixedVec: Vec2 = { x: 100, y: 0 };
@@ -261,15 +307,25 @@ export function DotProductVisualizer() {
   }, [mousePos, centerX, centerY]);
 
   return (
-    <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
+    <div ref={containerRef} className="my-8 bg-[#1a1a24] rounded-xl p-4">
       <canvas 
         ref={canvasRef}
         onMouseMove={handleMouseMove}
-        className="block mx-auto rounded-lg cursor-crosshair"
+        onTouchMove={(e) => {
+          e.preventDefault();
+          const touch = e.touches[0];
+          const rect = canvasRef.current?.getBoundingClientRect();
+          if (rect) {
+            setMousePos({ x: touch.clientX - rect.left, y: touch.clientY - rect.top });
+          }
+        }}
+        className="block mx-auto rounded-lg cursor-crosshair touch-none"
         style={{ width, height }}
+        role="img"
+        aria-label="Interactive dot product visualization. Move to change vector angle."
       />
       <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        🖱️ Move mouse to change the pink vector. Watch the dot product value.
+        🖱️ Move mouse (or touch) to change the pink vector. Watch the dot product value.
       </p>
     </div>
   );

@@ -1,6 +1,7 @@
 ---
 import ModuleLayout from '../../../layouts/ModuleLayout.astro';
 import Asteroids, { UnitCircleVisualizer, RotationDemo } from '../../../components/modules/Asteroids';
+import Quiz from '../../../components/lessons/Quiz';
 
 // Code snippets
 const codeRadians = `// Why radians? Because Math.sin/cos expect them!
@@ -95,6 +96,71 @@ function rotatePoint(x, y, angle) {
 const nose = rotatePoint(0, -20, ship.angle);
 const leftWing = rotatePoint(-15, 15, ship.angle);
 const rightWing = rotatePoint(15, 15, ship.angle);`;
+
+// Quiz questions for Module 02
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'How many radians are in a full circle (360°)?',
+    options: ['π', '2π', '3π', '4π'],
+    correctIndex: 1,
+    explanation: 'A full circle is 2π radians (approximately 6.28). This is because the circumference of a unit circle is 2πr, and with r=1, that\'s 2π.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is cos(0)?',
+    options: ['0', '1', '-1', '0.5'],
+    correctIndex: 1,
+    explanation: 'At angle 0, the point on the unit circle is at (1, 0). The x-coordinate (cos) is 1, and the y-coordinate (sin) is 0.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is sin(π/2) (90 degrees)?',
+    options: ['0', '1', '-1', '0.707'],
+    correctIndex: 1,
+    explanation: 'At π/2 radians (90°), the point on the unit circle is at the top: (0, 1). So sin(π/2) = 1 and cos(π/2) = 0.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Convert 180 degrees to radians using JavaScript:',
+    codeTemplate: 'const radians = 180 * ___ / 180;',
+    answers: ['Math.PI'],
+    explanation: 'To convert degrees to radians, multiply by π/180. So 180° × (π/180) = π radians.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'To convert polar coordinates (r, θ) to Cartesian (x, y), which formula gives the x coordinate?',
+    options: ['x = r × sin(θ)', 'x = r × cos(θ)', 'x = r × tan(θ)', 'x = r / cos(θ)'],
+    correctIndex: 1,
+    explanation: 'The x coordinate in Cartesian is r × cos(θ). Think of it as: cos gives the horizontal component, sin gives the vertical component.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In most game engines (including Canvas), which direction does increasing angle rotate?',
+    options: ['Clockwise', 'Counter-clockwise', 'It depends on the engine', 'Angles don\'t affect rotation'],
+    correctIndex: 0,
+    explanation: 'In Canvas (and most screen coordinate systems), the Y-axis points DOWN. This means positive angles rotate CLOCKWISE, opposite to standard math convention.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Calculate the distance from origin to point (3, 4) using the Pythagorean theorem:',
+    codeTemplate: 'const distance = Math.___(___ * 3 + 4 * 4);',
+    answers: ['sqrt', '3'],
+    explanation: 'Distance = √(x² + y²) = √(3² + 4²) = √(9 + 16) = √25 = 5. This is the classic 3-4-5 right triangle!'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'If a ship is at angle θ and you want it to move forward, what velocity should you add?',
+    options: [
+      'vx += sin(θ), vy += cos(θ)',
+      'vx += cos(θ), vy += sin(θ)',
+      'vx += θ, vy += θ',
+      'vx += 1, vy += 1'
+    ],
+    correctIndex: 1,
+    explanation: 'cos(θ) gives the x-component and sin(θ) gives the y-component of the direction. Multiply by speed for the velocity vector.'
+  }
+];
 ---
 
 <ModuleLayout 
@@ -102,6 +168,7 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
   moduleNumber="02"
   projectName="Asteroids Clone"
   prevModule={{ href: '/modules/01-vectors/', title: 'Vector Math Fundamentals' }}
+  nextModule={{ href: '/modules/03-physics/', title: 'Physics & Collision' }}
 >
   <!-- Intro -->
   <section class="mb-16">
@@ -112,13 +179,16 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
     </p>
     
     <div class="bg-accent/10 border border-accent/30 rounded-xl p-6 mb-6">
-      <p class="text-accent font-semibold mb-2">🎯 What You'll Learn</p>
+      <p class="text-accent font-semibold mb-2 flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        What You'll Learn
+      </p>
       <ul class="list-none space-y-1 text-text-secondary">
-        <li>✓ Converting angles to movement directions</li>
-        <li>✓ Radians vs degrees (and why radians win)</li>
-        <li>✓ The unit circle - your new best friend</li>
-        <li>✓ How to make a ship fly where it's pointing</li>
-        <li>✓ Screen wrapping (Asteroids-style teleportation)</li>
+        <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Converting angles to movement directions</li>
+        <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Radians vs degrees (and why radians win)</li>
+        <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> The unit circle - your new best friend</li>
+        <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> How to make a ship fly where it's pointing</li>
+        <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Screen wrapping (Asteroids-style teleportation)</li>
       </ul>
     </div>
   </section>
@@ -147,7 +217,10 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
     </div>
 
     <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-4">
-      <p class="text-[#e17055] font-semibold">⚠️ Common Bug</p>
+      <p class="text-[#e17055] font-semibold flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Common Bug
+      </p>
       <p class="text-text-secondary">
         Forgetting to convert! If your rotation looks way too fast or barely moves, 
         check if you're mixing radians and degrees.
@@ -177,7 +250,10 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
     <UnitCircleVisualizer client:visible />
 
     <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
-      <p class="text-[#00b894] font-semibold">💡 Key Insight</p>
+      <p class="text-[#00b894] font-semibold flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        Key Insight
+      </p>
       <p class="text-text-secondary">
         Notice how cos and sin are always between -1 and 1. That's because they describe 
         a point on a circle with radius 1. Multiply by any distance to scale!
@@ -194,8 +270,8 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
     </p>
 
     <ul class="list-none space-y-2 mb-6 text-text-secondary">
-      <li>📍 <strong class="text-white">Cartesian (x, y)</strong> - "go right 3, up 4"</li>
-      <li>📍 <strong class="text-white">Polar (r, θ)</strong> - "go 5 units at 53° angle"</li>
+      <li class="flex items-start gap-2"><svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span><strong class="text-white">Cartesian (x, y)</strong> - "go right 3, up 4"</span></li>
+      <li class="flex items-start gap-2"><svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span><strong class="text-white">Polar (r, θ)</strong> - "go 5 units at 53° angle"</span></li>
     </ul>
 
     <p class="text-text-secondary mb-4">
@@ -208,7 +284,10 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
     </div>
 
     <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
-      <p class="text-[#fdcb6e] font-semibold">🎯 Pro Tip: atan2</p>
+      <p class="text-[#fdcb6e] font-semibold flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        Pro Tip: atan2
+      </p>
       <p class="text-text-secondary">
         Always use <code>Math.atan2(y, x)</code> instead of <code>Math.atan(y/x)</code>. 
         It handles all four quadrants correctly and won't divide by zero!
@@ -225,9 +304,9 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
     </p>
 
     <ul class="list-none space-y-2 mb-6 text-text-secondary">
-      <li>🚀 Has an angle (which way it's pointing)</li>
-      <li>🚀 Thrusts <em>forward</em> - in the direction of that angle</li>
-      <li>🚀 Has momentum - keeps drifting even after you stop thrusting</li>
+      <li class="flex items-start gap-2"><svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>Has an angle (which way it's pointing)</span></li>
+      <li class="flex items-start gap-2"><svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>Thrusts <em>forward</em> - in the direction of that angle</span></li>
+      <li class="flex items-start gap-2"><svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg><span>Has momentum - keeps drifting even after you stop thrusting</span></li>
     </ul>
 
     <div class="bg-bg-card rounded-xl p-6 mb-6">
@@ -272,24 +351,30 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
 
   <!-- Project: Asteroids -->
   <section class="mb-16">
-    <h2 class="text-2xl font-bold text-accent mb-4">🎮 Project: Asteroids</h2>
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Asteroids
+    </h2>
     
     <p class="text-text-secondary mb-6">
       Now let's blast some rocks! This game demonstrates everything we learned:
     </p>
     
     <ul class="list-none space-y-2 mb-8 text-text-secondary">
-      <li>✓ Rotation using angle increments</li>
-      <li>✓ Thrust vector from <code>cos(angle)</code> / <code>sin(angle)</code></li>
-      <li>✓ Screen wrapping for ship, bullets, and asteroids</li>
-      <li>✓ Bullets fire in the direction the ship is pointing</li>
-      <li>✓ Ship drawn using rotation matrix</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Rotation using angle increments</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Thrust vector from <code>cos(angle)</code> / <code>sin(angle)</code></li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Screen wrapping for ship, bullets, and asteroids</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Bullets fire in the direction the ship is pointing</li>
+      <li class="flex items-center gap-2"><svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Ship drawn using rotation matrix</li>
     </ul>
 
     <Asteroids client:visible />
     
     <div class="bg-bg-card rounded-xl p-6 mt-6">
-      <p class="text-white font-semibold mb-2">🔍 Watch the math in action:</p>
+      <p class="text-white font-semibold mb-2 flex items-center gap-2">
+        <svg class="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        Watch the math in action:
+      </p>
       <p class="text-text-secondary">
         See that dashed line extending from your ship? That's the direction vector 
         from <code>(cos(angle), sin(angle))</code>. When you thrust, you accelerate 
@@ -300,7 +385,10 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
 
   <!-- Challenges -->
   <section class="mb-8">
-    <h2 class="text-2xl font-bold text-accent mb-4">💪 Challenges</h2>
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
     
     <p class="text-text-secondary mb-4">
       Master the basics? Try these extensions:
@@ -327,7 +415,10 @@ const rightWing = rotatePoint(15, 15, ship.angle);`;
 
   <!-- Summary -->
   <section class="mb-8">
-    <h2 class="text-2xl font-bold text-accent mb-4">📝 Quick Reference</h2>
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      Quick Reference
+    </h2>
     
     <div class="bg-bg-card rounded-xl p-6">
       <div class="grid md:grid-cols-2 gap-6">

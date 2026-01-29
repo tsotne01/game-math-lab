@@ -111,7 +111,7 @@ const modules = [
     ready: false
   },
   {
-    number: '⭐',
+    number: '★',
     title: 'Intro to 3D Math',
     project: '3D Solar System',
     topics: 'Matrices, Cameras, Quaternions',
@@ -129,9 +129,15 @@ const difficultyColors = {
 };
 
 const difficultyLabels = {
-  easy: '🟢 Beginner',
-  medium: '🟡 Intermediate',
-  hard: '🔴 Advanced'
+  easy: 'Beginner',
+  medium: 'Intermediate',
+  hard: 'Advanced'
+};
+
+const difficultyDotColors = {
+  easy: 'bg-[#00b894]',
+  medium: 'bg-[#fdcb6e]',
+  hard: 'bg-[#e17055]'
 };
 ---
 
@@ -177,8 +183,9 @@ const difficultyLabels = {
             {module.title}
           </h3>
           
-          <p class="text-accent text-sm font-medium mb-3">
-            🎯 Project: {module.project}
+          <p class="text-accent text-sm font-medium mb-3 flex items-center gap-1.5">
+            <svg class="w-4 h-4 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            Project: {module.project}
           </p>
           
           <p class="text-text-secondary text-sm mb-3">
@@ -186,7 +193,8 @@ const difficultyLabels = {
           </p>
           
           <div class="flex items-center justify-between">
-            <span class:list={['text-sm font-medium', difficultyColors[module.difficulty]]}>
+            <span class:list={['text-sm font-medium flex items-center gap-1.5', difficultyColors[module.difficulty]]}>
+              <span class:list={['w-2.5 h-2.5 rounded-full', difficultyDotColors[module.difficulty]]}></span>
               {difficultyLabels[module.difficulty]}
             </span>
             {!module.ready && (
