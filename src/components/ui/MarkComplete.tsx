@@ -58,8 +58,8 @@ export default function MarkComplete({ moduleId, moduleName }: MarkCompleteProps
       </button>
       
       {isComplete && (
-        <p className="text-sm text-[#00b894] animate-fade-in">
-          ✓ Your progress has been saved
+        <p className="text-sm text-[#00b894] animate-fade-in flex items-center gap-1">
+          <Check className="w-4 h-4" /> Your progress has been saved
         </p>
       )}
 
