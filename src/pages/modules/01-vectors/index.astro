@@ -2,6 +2,59 @@
 import ModuleLayout from '../../../layouts/ModuleLayout.astro';
 import VectorVisualizer, { DotProductVisualizer } from '../../../components/modules/VectorVisualizer';
 import Pong from '../../../components/modules/Pong';
+import Quiz from '../../../components/lessons/Quiz';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 01
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'What does normalizing a vector do?',
+    options: [
+      'Makes it longer',
+      'Makes it have length 1',
+      'Rotates it 90 degrees',
+      'Reverses its direction'
+    ],
+    correctIndex: 1,
+    explanation: 'Normalizing a vector scales it to have a magnitude (length) of exactly 1, while preserving its direction. This is useful when you only care about direction, not magnitude.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'If vector A = (3, 4), what is its magnitude?',
+    options: ['7', '12', '5', '1'],
+    correctIndex: 2,
+    explanation: 'The magnitude is calculated using the Pythagorean theorem: √(3² + 4²) = √(9 + 16) = √25 = 5. This is a classic 3-4-5 right triangle!'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does a dot product of 0 mean?',
+    options: [
+      'Vectors are parallel',
+      'Vectors are perpendicular',
+      'Vectors are opposite',
+      'One vector is zero'
+    ],
+    correctIndex: 1,
+    explanation: 'When the dot product is 0, the vectors are perpendicular (at 90° to each other). Positive means they point roughly the same way, negative means roughly opposite.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the vector addition function:',
+    codeTemplate: `function add(v1, v2) {
+  return { x: v1.x + ___, y: v1.y + ___ };
+}`,
+    answers: ['v2.x', 'v2.y'],
+    explanation: 'Vector addition is component-wise: add the x components together and the y components together. This combines the effects of both vectors.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'AABB collision checks if two _____ overlap.',
+    options: ['Circles', 'Triangles', 'Rectangles', 'Lines'],
+    correctIndex: 2,
+    explanation: 'AABB stands for Axis-Aligned Bounding Box. It\'s the simplest collision detection for rectangles that are aligned with the x and y axes (not rotated).'
+  }
+];
 
 // Code snippets as strings to avoid JSX parsing issues
 const codeBasicVector = `// A simple 2D vector
@@ -180,6 +233,21 @@ const codeAABB = `function aabbCollision(rect1, rect2) {
     </ul>
 
     <Pong client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">📝 Knowledge Check</h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of vector math concepts before moving on!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="Vector Math Quiz"
+      questions={quizQuestions}
+    />
   </section>
 
   <!-- Challenges -->
