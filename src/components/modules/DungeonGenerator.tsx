@@ -682,15 +682,16 @@ function placeContent(
 // ============ MAIN DUNGEON GENERATOR COMPONENT ============
 export default function DungeonGenerator() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [algorithm, setAlgorithm] = useState<AlgorithmType>('bsp');
   const [seed, setSeed] = useState('dungeon123');
   const [gridWidth, setGridWidth] = useState(40);
   const [gridHeight, setGridHeight] = useState(30);
-  const [minRoomSize, setMinRoomSize] = useState(4);
-  const [maxRoomSize, setMaxRoomSize] = useState(10);
+  const [minRoomSize, setMinRoomSize] = useState(5);
+  const [maxRoomSize, setMaxRoomSize] = useState(12);
   const [corridorWidth, setCorridorWidth] = useState(1);
   const [fillProbability, setFillProbability] = useState(0.45);
-  const [iterations, setIterations] = useState(4);
+  const [iterations, setIterations] = useState(5);
   const [grid, setGrid] = useState<TileType[][]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [steps, setSteps] = useState<GenerationStep[]>([]);
@@ -698,9 +699,23 @@ export default function DungeonGenerator() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [stepMode, setStepMode] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
+  const [containerWidth, setContainerWidth] = useState(640);
   const playingRef = useRef(false);
 
-  const cellSize = Math.min(16, Math.floor(Math.min(600 / gridWidth, 450 / gridHeight)));
+  // Responsive canvas sizing
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth - 32; // Account for padding
+        setContainerWidth(Math.max(280, Math.min(width, 800)));
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  const cellSize = Math.min(16, Math.floor(Math.min(containerWidth / gridWidth, (containerWidth * 0.75) / gridHeight)));
   const canvasWidth = gridWidth * cellSize;
   const canvasHeight = gridHeight * cellSize;
 
@@ -893,17 +908,19 @@ export default function DungeonGenerator() {
   };
 
   return (
-    <div className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
+    <div ref={containerRef} className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
       {/* Controls */}
       <div className="p-4 border-b border-[#2a2a3a] space-y-4">
         {/* Top row: Algorithm + Seed + Generate */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400">Algorithm:</label>
+            <label htmlFor="algo-select" className="text-xs text-gray-400">Algorithm:</label>
             <select
+              id="algo-select"
               value={algorithm}
               onChange={(e) => setAlgorithm(e.target.value as AlgorithmType)}
-              className="bg-[#1a1a24] text-white text-sm px-3 py-1.5 rounded border border-[#3a3a4a] focus:border-[#6c5ce7] outline-none"
+              aria-label="Generation algorithm"
+              className="bg-[#1a1a24] text-white text-sm px-3 py-1.5 rounded border border-[#3a3a4a] focus:border-[#6c5ce7] focus:ring-1 focus:ring-[#6c5ce7] outline-none"
             >
               <option value="bsp">BSP (Binary Space)</option>
               <option value="cellular">Cellular Automata</option>
@@ -913,27 +930,31 @@ export default function DungeonGenerator() {
           </div>
           
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400">Seed:</label>
+            <label htmlFor="seed-input" className="text-xs text-gray-400">Seed:</label>
             <input
+              id="seed-input"
               type="text"
               value={seed}
               onChange={(e) => setSeed(e.target.value)}
-              className="bg-[#1a1a24] text-white text-sm px-3 py-1.5 rounded border border-[#3a3a4a] focus:border-[#6c5ce7] outline-none w-28"
+              aria-label="Random seed value"
+              className="bg-[#1a1a24] text-white text-sm px-3 py-1.5 rounded border border-[#3a3a4a] focus:border-[#6c5ce7] focus:ring-1 focus:ring-[#6c5ce7] outline-none w-28"
             />
             <button
               onClick={randomSeed}
-              className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white"
+              className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white transition-colors"
               title="Random Seed"
+              aria-label="Generate random seed"
             >
-              <Shuffle className="w-4 h-4" />
+              <Shuffle className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
           
           <button
             onClick={generate}
             className="flex items-center gap-2 px-4 py-1.5 bg-[#6c5ce7] hover:bg-[#5b4bd6] text-white text-sm font-medium rounded transition-colors"
+            aria-label="Generate new dungeon"
           >
-            <Wand2 className="w-4 h-4" />
+            <Wand2 className="w-4 h-4" aria-hidden="true" />
             Generate
           </button>
         </div>
@@ -941,15 +962,17 @@ export default function DungeonGenerator() {
         {/* Size controls */}
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400">Size:</label>
+            <label htmlFor="size-select" className="text-xs text-gray-400">Size:</label>
             <select
+              id="size-select"
               value={`${gridWidth}x${gridHeight}`}
               onChange={(e) => {
                 const [w, h] = e.target.value.split('x').map(Number);
                 setGridWidth(w);
                 setGridHeight(h);
               }}
-              className="bg-[#1a1a24] text-white text-sm px-2 py-1 rounded border border-[#3a3a4a] focus:border-[#6c5ce7] outline-none"
+              aria-label="Dungeon size"
+              className="bg-[#1a1a24] text-white text-sm px-2 py-1 rounded border border-[#3a3a4a] focus:border-[#6c5ce7] focus:ring-1 focus:ring-[#6c5ce7] outline-none"
             >
               <option value="30x20">Small (30×20)</option>
               <option value="40x30">Medium (40×30)</option>
@@ -961,26 +984,36 @@ export default function DungeonGenerator() {
           {(algorithm === 'bsp' || algorithm === 'hybrid') && (
             <>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-400">Room Size:</label>
+                <label htmlFor="min-room-size" className="text-xs text-gray-400">Room Size:</label>
                 <input
+                  id="min-room-size"
                   type="range"
                   min="3"
                   max="8"
                   value={minRoomSize}
                   onChange={(e) => setMinRoomSize(Number(e.target.value))}
+                  aria-label="Minimum room size"
+                  aria-valuemin={3}
+                  aria-valuemax={8}
+                  aria-valuenow={minRoomSize}
                   className="w-16 accent-[#6c5ce7]"
                 />
-                <span className="text-gray-400 w-6">{minRoomSize}</span>
-                <span className="text-gray-600">-</span>
+                <span className="text-gray-400 w-6" aria-hidden="true">{minRoomSize}</span>
+                <span className="text-gray-600" aria-hidden="true">-</span>
                 <input
+                  id="max-room-size"
                   type="range"
                   min="6"
                   max="15"
                   value={maxRoomSize}
                   onChange={(e) => setMaxRoomSize(Number(e.target.value))}
+                  aria-label="Maximum room size"
+                  aria-valuemin={6}
+                  aria-valuemax={15}
+                  aria-valuenow={maxRoomSize}
                   className="w-16 accent-[#6c5ce7]"
                 />
-                <span className="text-gray-400 w-6">{maxRoomSize}</span>
+                <span className="text-gray-400 w-6" aria-hidden="true">{maxRoomSize}</span>
               </div>
             </>
           )}
@@ -988,29 +1021,39 @@ export default function DungeonGenerator() {
           {algorithm === 'cellular' && (
             <>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-400">Fill %:</label>
+                <label htmlFor="fill-prob" className="text-xs text-gray-400">Fill %:</label>
                 <input
+                  id="fill-prob"
                   type="range"
                   min="0.35"
                   max="0.55"
                   step="0.01"
                   value={fillProbability}
                   onChange={(e) => setFillProbability(Number(e.target.value))}
+                  aria-label="Initial fill probability"
+                  aria-valuemin={35}
+                  aria-valuemax={55}
+                  aria-valuenow={Math.round(fillProbability * 100)}
                   className="w-20 accent-[#6c5ce7]"
                 />
-                <span className="text-gray-400 w-8">{Math.round(fillProbability * 100)}%</span>
+                <span className="text-gray-400 w-8" aria-hidden="true">{Math.round(fillProbability * 100)}%</span>
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-400">Iterations:</label>
+                <label htmlFor="ca-iterations" className="text-xs text-gray-400">Iterations:</label>
                 <input
+                  id="ca-iterations"
                   type="range"
                   min="1"
                   max="8"
                   value={iterations}
                   onChange={(e) => setIterations(Number(e.target.value))}
+                  aria-label="Smoothing iterations"
+                  aria-valuemin={1}
+                  aria-valuemax={8}
+                  aria-valuenow={iterations}
                   className="w-16 accent-[#6c5ce7]"
                 />
-                <span className="text-gray-400 w-4">{iterations}</span>
+                <span className="text-gray-400 w-4" aria-hidden="true">{iterations}</span>
               </div>
             </>
           )}
@@ -1023,6 +1066,7 @@ export default function DungeonGenerator() {
               type="checkbox"
               checked={stepMode}
               onChange={(e) => setStepMode(e.target.checked)}
+              aria-label="Enable step-through mode"
               className="accent-[#6c5ce7]"
             />
             Step-through mode
@@ -1030,16 +1074,17 @@ export default function DungeonGenerator() {
           
           {stepMode && steps.length > 0 && (
             <>
-              <div className="flex items-center gap-1">
+              <nav className="flex items-center gap-1" role="group" aria-label="Step navigation">
                 <button
                   onClick={() => {
                     setCurrentStep(0);
                     setGrid(steps[0].grid);
                   }}
                   disabled={currentStep === 0}
-                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50"
+                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                  aria-label="Go to first step"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-4 h-4" aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => {
@@ -1048,15 +1093,17 @@ export default function DungeonGenerator() {
                     setGrid(steps[prev].grid);
                   }}
                   disabled={currentStep === 0}
-                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50"
+                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                  aria-label="Previous step"
                 >
-                  <ChevronRight className="w-4 h-4 rotate-180" />
+                  <ChevronRight className="w-4 h-4 rotate-180" aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => setIsPlaying(!isPlaying)}
-                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white"
+                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white transition-colors"
+                  aria-label={isPlaying ? 'Pause animation' : 'Play animation'}
                 >
-                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  {isPlaying ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
                 </button>
                 <button
                   onClick={() => {
@@ -1065,9 +1112,10 @@ export default function DungeonGenerator() {
                     setGrid(steps[next].grid);
                   }}
                   disabled={currentStep >= steps.length - 1}
-                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50"
+                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                  aria-label="Next step"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4" aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => {
@@ -1075,12 +1123,13 @@ export default function DungeonGenerator() {
                     setGrid(steps[steps.length - 1].grid);
                   }}
                   disabled={currentStep >= steps.length - 1}
-                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50"
+                  className="p-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                  aria-label="Go to last step"
                 >
-                  <SkipForward className="w-4 h-4" />
+                  <SkipForward className="w-4 h-4" aria-hidden="true" />
                 </button>
-              </div>
-              <span className="text-sm text-gray-400">
+              </nav>
+              <span className="text-sm text-gray-400" aria-live="polite">
                 Step {currentStep + 1}/{steps.length}
               </span>
             </>
@@ -1088,28 +1137,31 @@ export default function DungeonGenerator() {
           
           <div className="flex-1" />
           
-          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer" title="Show grid lines">
             <input
               type="checkbox"
               checked={showGrid}
               onChange={(e) => setShowGrid(e.target.checked)}
+              aria-label="Show grid lines"
               className="accent-[#6c5ce7]"
             />
-            <Grid3X3 className="w-4 h-4" />
+            <Grid3X3 className="w-4 h-4" aria-hidden="true" />
           </label>
           
           <button
             onClick={exportJSON}
-            className="flex items-center gap-1 px-2 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#00b894] text-gray-400 hover:text-[#00b894] text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#00b894] text-gray-400 hover:text-[#00b894] text-xs transition-colors"
+            aria-label="Export dungeon as JSON"
           >
-            <Download className="w-3 h-3" />
+            <Download className="w-3 h-3" aria-hidden="true" />
             JSON
           </button>
           <button
             onClick={exportImage}
-            className="flex items-center gap-1 px-2 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#00b894] text-gray-400 hover:text-[#00b894] text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#00b894] text-gray-400 hover:text-[#00b894] text-xs transition-colors"
+            aria-label="Export dungeon as PNG image"
           >
-            <Download className="w-3 h-3" />
+            <Download className="w-3 h-3" aria-hidden="true" />
             PNG
           </button>
         </div>
@@ -1128,43 +1180,45 @@ export default function DungeonGenerator() {
           ref={canvasRef}
           width={canvasWidth}
           height={canvasHeight}
-          className="border border-[#2a2a3a] rounded"
+          className="border border-[#2a2a3a] rounded max-w-full"
+          role="img"
+          aria-label={`Generated dungeon map using ${algorithm} algorithm, ${gridWidth}x${gridHeight} tiles, seed: ${seed}`}
         />
       </div>
       
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 p-4 border-t border-[#2a2a3a] text-xs text-gray-400">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.wall }} />
+      <div className="flex flex-wrap gap-3 sm:gap-4 p-4 border-t border-[#2a2a3a] text-xs text-gray-400" role="list" aria-label="Map legend">
+        <div className="flex items-center gap-2" role="listitem">
+          <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: COLORS.wall }} aria-hidden="true" />
           <span>Wall</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.floor }} />
+        <div className="flex items-center gap-2" role="listitem">
+          <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: COLORS.floor }} aria-hidden="true" />
           <span>Floor</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.corridor }} />
+        <div className="flex items-center gap-2" role="listitem">
+          <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: COLORS.corridor }} aria-hidden="true" />
           <span>Corridor</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.start }} />
+        <div className="flex items-center gap-2" role="listitem">
+          <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: COLORS.start }} aria-hidden="true" />
           <span>Start</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.exit }} />
+        <div className="flex items-center gap-2" role="listitem">
+          <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: COLORS.exit }} aria-hidden="true" />
           <span>Exit</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.treasure }} />
+        <div className="flex items-center gap-2" role="listitem">
+          <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: COLORS.treasure }} aria-hidden="true" />
           <span>Treasure</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.enemy }} />
+        <div className="flex items-center gap-2" role="listitem">
+          <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: COLORS.enemy }} aria-hidden="true" />
           <span>Enemy</span>
         </div>
         {rooms.length > 0 && (
-          <div className="ml-auto text-gray-500">
-            {rooms.length} room{rooms.length !== 1 ? 's' : ''} • Seed: {seed}
+          <div className="ml-auto text-gray-500 whitespace-nowrap">
+            {rooms.length} room{rooms.length !== 1 ? 's' : ''} • Seed: <code className="font-mono text-[#6c5ce7]">{seed}</code>
           </div>
         )}
       </div>
