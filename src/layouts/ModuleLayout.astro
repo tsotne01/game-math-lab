@@ -1,0 +1,87 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  moduleNumber: string;
+  projectName: string;
+  nextModule?: {
+    href: string;
+    title: string;
+  };
+  prevModule?: {
+    href: string;
+    title: string;
+  };
+}
+
+const { title, moduleNumber, projectName, nextModule, prevModule } = Astro.props;
+---
+
+<BaseLayout title={`${title} | Game Math Lab`}>
+  <div class="max-w-4xl mx-auto">
+    <!-- Breadcrumb -->
+    <nav class="mb-6 text-sm text-text-secondary">
+      <a href="/" class="hover:text-accent">Home</a>
+      <span class="mx-2">→</span>
+      <a href="/#modules" class="hover:text-accent">Modules</a>
+      <span class="mx-2">→</span>
+      <span class="text-text-primary">{title}</span>
+    </nav>
+
+    <!-- Module Header -->
+    <header class="mb-12 pb-8 border-b border-border">
+      <span class="inline-block px-3 py-1 bg-accent/20 text-accent text-sm font-semibold rounded-full mb-4">
+        Module {moduleNumber}
+      </span>
+      <h1 class="text-4xl font-bold mb-3 gradient-text-hero">{title}</h1>
+      <p class="text-xl text-accent flex items-center gap-2">
+        <span>🎯</span>
+        Project: {projectName}
+      </p>
+    </header>
+
+    <!-- Content -->
+    <article class="prose prose-invert prose-lg max-w-none">
+      <slot />
+    </article>
+
+    <!-- Navigation -->
+    <nav class="mt-16 pt-8 border-t border-border">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        {prevModule ? (
+          <a 
+            href={prevModule.href}
+            class="flex items-center gap-2 px-6 py-4 bg-bg-card border border-border rounded-xl hover:border-accent transition-colors group"
+          >
+            <span class="text-text-secondary group-hover:text-accent transition-colors">←</span>
+            <div>
+              <div class="text-xs text-text-secondary">Previous</div>
+              <div class="font-semibold">{prevModule.title}</div>
+            </div>
+          </a>
+        ) : <div />}
+        
+        {nextModule ? (
+          <a 
+            href={nextModule.href}
+            class="flex items-center gap-2 px-6 py-4 bg-bg-card border border-border rounded-xl hover:border-accent transition-colors group text-right"
+          >
+            <div>
+              <div class="text-xs text-text-secondary">Next</div>
+              <div class="font-semibold">{nextModule.title}</div>
+            </div>
+            <span class="text-text-secondary group-hover:text-accent transition-colors">→</span>
+          </a>
+        ) : (
+          <a 
+            href="/"
+            class="flex items-center gap-2 px-6 py-4 bg-accent text-white rounded-xl hover:bg-accent-hover transition-colors font-semibold"
+          >
+            ✓ Complete Module
+          </a>
+        )}
+      </div>
+    </nav>
+  </div>
+</BaseLayout>

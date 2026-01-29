@@ -1,0 +1,64 @@
+---
+const navLinks = [
+  { href: '/#modules', label: 'Modules' },
+  { href: '/sandbox', label: 'Sandbox' },
+  { href: '/resources', label: 'Resources' },
+];
+---
+
+<header class="sticky top-0 z-50 bg-bg-secondary/95 backdrop-blur-sm border-b border-border">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-3 group">
+      <span class="text-2xl">🎮</span>
+      <h1 class="text-xl font-bold gradient-text group-hover:opacity-80 transition-opacity">
+        Game Math Lab
+      </h1>
+    </a>
+    
+    <nav class="hidden sm:flex items-center gap-8">
+      {navLinks.map(link => (
+        <a 
+          href={link.href} 
+          class="text-text-secondary font-medium hover:text-accent transition-colors"
+        >
+          {link.label}
+        </a>
+      ))}
+    </nav>
+
+    <!-- Mobile menu button -->
+    <button 
+      class="sm:hidden p-2 text-text-secondary hover:text-accent"
+      id="mobile-menu-btn"
+      aria-label="Toggle menu"
+    >
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+      </svg>
+    </button>
+  </div>
+  
+  <!-- Mobile menu -->
+  <nav 
+    id="mobile-menu" 
+    class="hidden sm:hidden bg-bg-secondary border-t border-border"
+  >
+    {navLinks.map(link => (
+      <a 
+        href={link.href} 
+        class="block px-4 py-3 text-text-secondary font-medium hover:bg-bg-card hover:text-accent transition-colors"
+      >
+        {link.label}
+      </a>
+    ))}
+  </nav>
+</header>
+
+<script>
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const menu = document.getElementById('mobile-menu');
+  
+  menuBtn?.addEventListener('click', () => {
+    menu?.classList.toggle('hidden');
+  });
+</script>

@@ -1,0 +1,20 @@
+---
+const currentYear = new Date().getFullYear();
+---
+
+<footer class="border-t border-border bg-bg-secondary">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p class="text-text-secondary text-sm">
+        Built by <a href="https://github.com/tsotne01" class="text-accent hover:underline">Tsotne</a> 
+        • Learning game dev algorithms one project at a time
+      </p>
+      <div class="flex items-center gap-6 text-text-secondary text-sm">
+        <a href="https://github.com/tsotne01/game-math-lab" class="hover:text-accent transition-colors">
+          GitHub
+        </a>
+        <span>© {currentYear}</span>
+      </div>
+    </div>
+  </div>
+</footer>

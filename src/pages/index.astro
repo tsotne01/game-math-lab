@@ -1,0 +1,244 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const modules = [
+  {
+    number: '01',
+    title: 'Vector Math Fundamentals',
+    project: 'Pong Clone',
+    topics: 'Vectors, Dot Product, Collision',
+    difficulty: 'easy',
+    href: '/modules/01-vectors/',
+    ready: true
+  },
+  {
+    number: '02',
+    title: 'Trigonometry in Action',
+    project: 'Asteroids Clone',
+    topics: 'Sin/Cos, Rotation, Polar Coords',
+    difficulty: 'easy',
+    href: '/modules/02-trigonometry/',
+    ready: false
+  },
+  {
+    number: '03',
+    title: 'Physics Simulation',
+    project: 'Angry Birds Launcher',
+    topics: 'Kinematics, Gravity, Projectiles',
+    difficulty: 'medium',
+    href: '/modules/03-physics/',
+    ready: false
+  },
+  {
+    number: '04',
+    title: 'Collision Detection',
+    project: 'Platformer Controller',
+    topics: 'AABB, Tiles, Resolution',
+    difficulty: 'medium',
+    href: '/modules/04-collision/',
+    ready: false
+  },
+  {
+    number: '05',
+    title: 'State Machines',
+    project: 'Combat System',
+    topics: 'FSM, Transitions, Hitboxes',
+    difficulty: 'medium',
+    href: '/modules/05-state-machines/',
+    ready: false
+  },
+  {
+    number: '06',
+    title: 'Steering Behaviors',
+    project: 'Flocking Simulation',
+    topics: 'Seek, Flee, Boids',
+    difficulty: 'medium',
+    href: '/modules/06-steering/',
+    ready: false
+  },
+  {
+    number: '07',
+    title: 'Pathfinding Algorithms',
+    project: 'Dungeon Crawler',
+    topics: 'BFS, Dijkstra, A*',
+    difficulty: 'hard',
+    href: '/modules/07-pathfinding/',
+    ready: false
+  },
+  {
+    number: '08',
+    title: 'Spatial Partitioning',
+    project: 'Collision Optimizer',
+    topics: 'Quadtrees, Broad Phase',
+    difficulty: 'hard',
+    href: '/modules/08-spatial/',
+    ready: false
+  },
+  {
+    number: '09',
+    title: 'Interpolation & Animation',
+    project: 'Tween Engine',
+    topics: 'Lerp, Easing, Bezier',
+    difficulty: 'medium',
+    href: '/modules/09-interpolation/',
+    ready: false
+  },
+  {
+    number: '10',
+    title: 'Particle Systems',
+    project: 'VFX Toolkit',
+    topics: 'Emitters, Pooling, Effects',
+    difficulty: 'medium',
+    href: '/modules/10-particles/',
+    ready: false
+  },
+  {
+    number: '11',
+    title: 'Procedural Generation',
+    project: 'Dungeon Generator',
+    topics: 'Noise, BSP, Cellular Automata',
+    difficulty: 'hard',
+    href: '/modules/11-procedural/',
+    ready: false
+  },
+  {
+    number: '12',
+    title: 'Raycasting & Pseudo-3D',
+    project: 'Wolfenstein Renderer',
+    topics: 'DDA, Textures, Sprites',
+    difficulty: 'hard',
+    href: '/modules/12-raycasting/',
+    ready: false
+  },
+  {
+    number: '⭐',
+    title: 'Intro to 3D Math',
+    project: '3D Solar System',
+    topics: 'Matrices, Cameras, Quaternions',
+    difficulty: 'hard',
+    href: '/modules/13-3d-intro/',
+    ready: false,
+    bonus: true
+  }
+];
+
+const difficultyColors = {
+  easy: 'text-[#00b894]',
+  medium: 'text-[#fdcb6e]',
+  hard: 'text-[#e17055]'
+};
+
+const difficultyLabels = {
+  easy: '🟢 Beginner',
+  medium: '🟡 Intermediate',
+  hard: '🔴 Advanced'
+};
+---
+
+<BaseLayout>
+  <!-- Hero Section -->
+  <section class="text-center py-16 md:py-24">
+    <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 gradient-text-hero">
+      Master Game Development<br />Algorithms
+    </h1>
+    <p class="text-xl text-text-secondary max-w-2xl mx-auto mb-8">
+      Learn math and algorithms through building real games. 
+      No boring theory — just hands-on projects.
+    </p>
+    <a href="#modules" class="btn btn-primary text-lg">
+      Start Learning
+    </a>
+  </section>
+
+  <!-- Modules Grid -->
+  <section id="modules" class="py-12">
+    <h2 class="text-3xl font-bold mb-8">Course Modules</h2>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {modules.map((module) => (
+        <a 
+          href={module.ready ? module.href : '#'}
+          class:list={[
+            'module-card block p-6 bg-bg-card border rounded-xl transition-all duration-200',
+            module.ready 
+              ? 'border-border hover:border-accent hover:-translate-y-1 hover:shadow-lg' 
+              : 'border-border/50 opacity-60 cursor-not-allowed',
+            module.bonus && 'border-[#fdcb6e]/50'
+          ]}
+        >
+          <span class:list={[
+            'text-5xl font-extrabold leading-none opacity-30',
+            module.bonus ? 'text-[#fdcb6e]' : 'text-accent'
+          ]}>
+            {module.number}
+          </span>
+          
+          <h3 class="text-xl font-semibold mt-2 mb-1">
+            {module.title}
+          </h3>
+          
+          <p class="text-accent text-sm font-medium mb-3">
+            🎯 Project: {module.project}
+          </p>
+          
+          <p class="text-text-secondary text-sm mb-3">
+            {module.topics}
+          </p>
+          
+          <div class="flex items-center justify-between">
+            <span class:list={['text-sm font-medium', difficultyColors[module.difficulty]]}>
+              {difficultyLabels[module.difficulty]}
+            </span>
+            {!module.ready && (
+              <span class="text-xs bg-bg-secondary px-2 py-1 rounded text-text-secondary">
+                Coming Soon
+              </span>
+            )}
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <!-- Progress Section -->
+  <section class="py-12">
+    <div class="bg-bg-secondary rounded-2xl p-8 text-center">
+      <h2 class="text-2xl font-bold mb-6">Your Progress</h2>
+      
+      <div class="bg-bg-card rounded-full h-5 overflow-hidden mb-4 max-w-md mx-auto">
+        <div 
+          class="h-full rounded-full transition-all duration-500"
+          style="width: 0%; background: linear-gradient(90deg, #6c5ce7, #00b894);"
+          id="progress-bar"
+        />
+      </div>
+      
+      <p class="text-text-secondary" id="progress-text">
+        0 / 13 modules completed
+      </p>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  // Simple progress tracking with localStorage
+  function getProgress() {
+    const stored = localStorage.getItem('game-math-lab-progress');
+    return stored ? JSON.parse(stored) : { completed: [] };
+  }
+
+  function updateProgressUI() {
+    const progress = getProgress();
+    const completed = progress.completed.length;
+    const total = 13;
+    const percentage = (completed / total) * 100;
+
+    const bar = document.getElementById('progress-bar');
+    const text = document.getElementById('progress-text');
+
+    if (bar) bar.style.width = `${percentage}%`;
+    if (text) text.textContent = `${completed} / ${total} modules completed`;
+  }
+
+  updateProgressUI();
+</script>

@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# output
+dist/
+.output/
+
+# environment
+.env
+.env.*
+
+# astro
+.astro/
+
+# netlify
+.netlify/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*

@@ -1,69 +1,43 @@
-# 🎮 Game Math Lab
+# Astro Starter Kit: Minimal
 
-**Interactive course for learning algorithms and math through building real games.**
-
-No boring theory walls — just hands-on projects with interactive demos and visualizations.
-
-## 📚 Curriculum
-
-| Module | Topic | Project | Difficulty |
-|--------|-------|---------|------------|
-| 01 | Vector Math Fundamentals | Pong Clone | 🟢 Beginner |
-| 02 | Trigonometry in Action | Asteroids Clone | 🟢 Beginner |
-| 03 | Physics Simulation | Angry Birds Launcher | 🟡 Intermediate |
-| 04 | Collision Detection | Platformer Controller | 🟡 Intermediate |
-| 05 | State Machines | Combat System | 🟡 Intermediate |
-| 06 | Steering Behaviors | Flocking Simulation | 🟡 Intermediate |
-| 07 | Pathfinding Algorithms | Dungeon Crawler | 🔴 Advanced |
-| 08 | Spatial Partitioning | Collision Optimizer | 🔴 Advanced |
-| 09 | Interpolation & Animation | Tween Engine | 🟡 Intermediate |
-| 10 | Particle Systems | VFX Toolkit | 🟡 Intermediate |
-| 11 | Procedural Generation | Dungeon Generator | 🔴 Advanced |
-| 12 | Raycasting & Pseudo-3D | Wolfenstein Renderer | 🔴 Advanced |
-| ⭐ | Intro to 3D Math | 3D Solar System | 🔴 Bonus |
-
-## 🛠️ Tech Stack
-
-- **Vanilla JavaScript** + HTML Canvas (no frameworks hiding the math)
-- **Zero dependencies** — just open and learn
-- **LocalStorage** for progress tracking
-
-## 🚀 Getting Started
-
-1. Clone the repo
-2. Open `index.html` in your browser
-3. Start with Module 01 and work your way through!
-
-Or visit the live site: [Coming soon via Netlify]
-
-## 📁 Structure
-
+```sh
+npm create astro@latest -- --template minimal
 ```
-game-math-lab/
-├── index.html              # Course homepage
+
+> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+
+## 🚀 Project Structure
+
+Inside of your Astro project, you'll see the following folders and files:
+
+```text
+/
+├── public/
 ├── src/
-│   ├── modules/            # Each learning module
-│   │   ├── 01-vectors/
-│   │   ├── 02-trigonometry/
-│   │   └── ...
-│   ├── styles/             # CSS
-│   ├── utils/              # Shared utilities
-│   └── main.js
-└── public/                 # Static assets
+│   └── pages/
+│       └── index.astro
+└── package.json
 ```
 
-## 🎯 Learning Philosophy
+Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
 
-Each module follows the pattern:
-1. **Theory** — Concepts explained with interactive visualizations
-2. **Demo** — See the math in action
-3. **Project** — Build something real
-4. **Challenges** — Push yourself further
+There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
 
-## 📝 License
+Any static assets, like images, can be placed in the `public/` directory.
 
-MIT — Learn, modify, share!
+## 🧞 Commands
 
----
+All commands are run from the root of the project, from a terminal:
 
-Built by [@tsotne01](https://github.com/tsotne01)
+| Command                   | Action                                           |
+| :------------------------ | :----------------------------------------------- |
+| `npm install`             | Installs dependencies                            |
+| `npm run dev`             | Starts local dev server at `localhost:4321`      |
+| `npm run build`           | Build your production site to `./dist/`          |
+| `npm run preview`         | Preview your build locally, before deploying     |
+| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
+| `npm run astro -- --help` | Get help using the Astro CLI                     |
+
+## 👀 Want to learn more?
+
+Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
