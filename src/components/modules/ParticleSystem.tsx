@@ -1407,11 +1407,12 @@ export default function ParticleSystem() {
 
         {/* End Color */}
         <div className="bg-bg-secondary rounded-lg p-3">
-          <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Palette className="w-4 h-4 text-[#fd79a8]" />
+          <label htmlFor="end-color" className="text-sm text-text-secondary flex items-center gap-2 mb-2">
+            <Palette className="w-4 h-4 text-[#fd79a8]" aria-hidden="true" />
             End Color
           </label>
           <input
+            id="end-color"
             type="color"
             value={rgbToHex(config.endColor)}
             onChange={(e) => setConfig(prev => ({
@@ -1419,25 +1420,30 @@ export default function ParticleSystem() {
               endColor: hexToRgb(e.target.value)
             }))}
             className="w-full h-8 rounded cursor-pointer"
+            aria-label="End color for particle fade"
           />
         </div>
 
         {/* Toggles */}
         <div className="bg-bg-secondary rounded-lg p-3">
           <label className="text-sm text-text-secondary flex items-center gap-2 mb-2">
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4 h-4" aria-hidden="true" />
             Options
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Particle effect options">
             <button
               onClick={() => setConfig(prev => ({ ...prev, alphaFade: !prev.alphaFade }))}
               className={`px-2 py-1 rounded text-xs ${config.alphaFade ? 'bg-[#00b894] text-white' : 'bg-bg-card text-text-secondary'}`}
+              aria-pressed={config.alphaFade}
+              aria-label="Toggle alpha fade"
             >
               Alpha Fade
             </button>
             <button
               onClick={() => setConfig(prev => ({ ...prev, burst: !prev.burst }))}
               className={`px-2 py-1 rounded text-xs ${config.burst ? 'bg-[#fdcb6e] text-black' : 'bg-bg-card text-text-secondary'}`}
+              aria-pressed={config.burst}
+              aria-label="Toggle burst mode"
             >
               Burst Mode
             </button>
@@ -1562,12 +1568,14 @@ export function BlendModeDemo() {
 
   return (
     <div className="bg-bg-card rounded-xl p-4 md:p-6">
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Blend mode selection">
         {modes.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setBlendMode(id)}
             className={`px-4 py-2 rounded-lg transition-colors ${blendMode === id ? 'bg-[#6c5ce7] text-white' : 'bg-bg-secondary text-text-secondary hover:bg-bg-secondary/80'}`}
+            aria-pressed={blendMode === id}
+            aria-label={`Select ${label} blend mode`}
           >
             {label}
           </button>
@@ -1580,9 +1588,11 @@ export function BlendModeDemo() {
         height={320}
         className="w-full rounded-lg border border-border"
         style={{ maxWidth: '600px' }}
+        role="img"
+        aria-label={`Blend mode demo showing ${blendMode} blending with colored particles`}
       />
 
-      <div className="mt-4 text-sm text-text-secondary">
+      <div className="mt-4 text-sm text-text-secondary" aria-live="polite">
         {modes.find(m => m.id === blendMode)?.desc}
       </div>
     </div>
@@ -1758,16 +1768,20 @@ export function EffectBuilder() {
           height={360}
           className="w-full rounded-lg border border-border"
           style={{ maxWidth: '600px' }}
+          role="img"
+          aria-label="Custom particle effect builder preview canvas"
         />
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Emitter</label>
+              <label htmlFor="builder-emitter" className="text-xs text-text-secondary mb-1 block">Emitter</label>
               <select
+                id="builder-emitter"
                 value={config.emitterType}
                 onChange={(e) => setConfig(prev => ({ ...prev, emitterType: e.target.value as any }))}
                 className="w-full bg-bg-secondary rounded px-2 py-1.5 text-sm"
+                aria-label="Select emitter type"
               >
                 <option value="point">Point</option>
                 <option value="line">Line</option>
@@ -1776,11 +1790,13 @@ export function EffectBuilder() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Blend Mode</label>
+              <label htmlFor="builder-blend" className="text-xs text-text-secondary mb-1 block">Blend Mode</label>
               <select
+                id="builder-blend"
                 value={config.blendMode}
                 onChange={(e) => setConfig(prev => ({ ...prev, blendMode: e.target.value as any }))}
                 className="w-full bg-bg-secondary rounded px-2 py-1.5 text-sm"
+                aria-label="Select blend mode"
               >
                 <option value="normal">Normal</option>
                 <option value="additive">Additive</option>
@@ -1789,45 +1805,51 @@ export function EffectBuilder() {
           </div>
 
           <div>
-            <label className="text-xs text-text-secondary mb-1 block">Count: {config.count}</label>
-            <input type="range" min="10" max="200" value={config.count}
+            <label htmlFor="builder-count" className="text-xs text-text-secondary mb-1 block">Count: {config.count}</label>
+            <input id="builder-count" type="range" min="10" max="200" value={config.count}
               onChange={(e) => setConfig(prev => ({ ...prev, count: Number(e.target.value) }))}
-              className="w-full accent-[#00b894]" />
+              className="w-full accent-[#00b894]"
+              aria-label={`Particle count: ${config.count}`} />
           </div>
 
           <div>
-            <label className="text-xs text-text-secondary mb-1 block">Lifetime: {config.lifetime.toFixed(1)}s</label>
-            <input type="range" min="0.5" max="5" step="0.1" value={config.lifetime}
+            <label htmlFor="builder-lifetime" className="text-xs text-text-secondary mb-1 block">Lifetime: {config.lifetime.toFixed(1)}s</label>
+            <input id="builder-lifetime" type="range" min="0.5" max="5" step="0.1" value={config.lifetime}
               onChange={(e) => setConfig(prev => ({ ...prev, lifetime: Number(e.target.value) }))}
-              className="w-full accent-[#fdcb6e]" />
+              className="w-full accent-[#fdcb6e]"
+              aria-label={`Lifetime: ${config.lifetime.toFixed(1)} seconds`} />
           </div>
 
           <div>
-            <label className="text-xs text-text-secondary mb-1 block">Speed: {config.speed}</label>
-            <input type="range" min="10" max="200" value={config.speed}
+            <label htmlFor="builder-speed" className="text-xs text-text-secondary mb-1 block">Speed: {config.speed}</label>
+            <input id="builder-speed" type="range" min="10" max="200" value={config.speed}
               onChange={(e) => setConfig(prev => ({ ...prev, speed: Number(e.target.value) }))}
-              className="w-full accent-[#74b9ff]" />
+              className="w-full accent-[#74b9ff]"
+              aria-label={`Speed: ${config.speed}`} />
           </div>
 
           <div>
-            <label className="text-xs text-text-secondary mb-1 block">Gravity: {config.gravity}</label>
-            <input type="range" min="-200" max="200" value={config.gravity}
+            <label htmlFor="builder-gravity" className="text-xs text-text-secondary mb-1 block">Gravity: {config.gravity}</label>
+            <input id="builder-gravity" type="range" min="-200" max="200" value={config.gravity}
               onChange={(e) => setConfig(prev => ({ ...prev, gravity: Number(e.target.value) }))}
-              className="w-full accent-[#e17055]" />
+              className="w-full accent-[#e17055]"
+              aria-label={`Gravity: ${config.gravity}`} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Start Color</label>
-              <input type="color" value={config.startColor}
+              <label htmlFor="builder-start-color" className="text-xs text-text-secondary mb-1 block">Start Color</label>
+              <input id="builder-start-color" type="color" value={config.startColor}
                 onChange={(e) => setConfig(prev => ({ ...prev, startColor: e.target.value }))}
-                className="w-full h-8 rounded cursor-pointer" />
+                className="w-full h-8 rounded cursor-pointer"
+                aria-label="Start color" />
             </div>
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">End Color</label>
-              <input type="color" value={config.endColor}
+              <label htmlFor="builder-end-color" className="text-xs text-text-secondary mb-1 block">End Color</label>
+              <input id="builder-end-color" type="color" value={config.endColor}
                 onChange={(e) => setConfig(prev => ({ ...prev, endColor: e.target.value }))}
-                className="w-full h-8 rounded cursor-pointer" />
+                className="w-full h-8 rounded cursor-pointer"
+                aria-label="End color" />
             </div>
           </div>
 
@@ -1835,6 +1857,8 @@ export function EffectBuilder() {
             <button
               onClick={() => setConfig(prev => ({ ...prev, alphaFade: !prev.alphaFade }))}
               className={`flex-1 px-3 py-2 rounded text-sm ${config.alphaFade ? 'bg-[#00b894] text-white' : 'bg-bg-secondary text-text-secondary'}`}
+              aria-pressed={config.alphaFade}
+              aria-label="Toggle alpha fade effect"
             >
               Alpha Fade
             </button>
