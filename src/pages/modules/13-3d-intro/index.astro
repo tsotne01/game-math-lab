@@ -1,0 +1,635 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import SolarSystem, { Vector3DVisualizer, MatrixTransformDemo, ProjectionComparison, GimbalLockDemo, RenderingPipeline } from '../../../components/modules/SolarSystem';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 13
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'In a 3D coordinate system, which axis typically represents depth (towards/away from viewer)?',
+    options: ['X axis', 'Y axis', 'Z axis', 'W axis'],
+    correctIndex: 2,
+    explanation: 'In most 3D systems, X is horizontal (left/right), Y is vertical (up/down), and Z represents depth (towards/away from the viewer). The W axis is used for homogeneous coordinates.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'Why do we use 4x4 matrices for 3D transformations instead of 3x3?',
+    options: [
+      'For better performance',
+      'To include translation in the same matrix multiplication',
+      'Because GPUs only support 4x4',
+      '3x3 matrices cannot store rotation'
+    ],
+    correctIndex: 1,
+    explanation: 'Homogeneous coordinates (4D) allow us to represent translation as matrix multiplication. With 3x3, we could only do rotation and scale — translation would need to be added separately.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the main difference between perspective and orthographic projection?',
+    options: [
+      'Perspective is faster to compute',
+      'Orthographic can only show 2D scenes',
+      'Perspective makes distant objects appear smaller',
+      'Orthographic uses larger matrices'
+    ],
+    correctIndex: 2,
+    explanation: 'Perspective projection simulates how our eyes see the world — distant objects appear smaller. Orthographic projection maintains object size regardless of distance, useful for CAD and some game styles.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is gimbal lock?',
+    options: [
+      'When the camera cannot move',
+      'When two rotation axes align, causing loss of a degree of freedom',
+      'When the game runs too slowly',
+      'When a 3D model has too many vertices'
+    ],
+    correctIndex: 1,
+    explanation: 'Gimbal lock occurs with Euler angles when two rotation axes become parallel (usually at 90° pitch). This makes certain rotations impossible and causes unpredictable behavior. Quaternions solve this problem.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does the View Matrix represent?',
+    options: [
+      'How the player views the UI',
+      'The camera\'s position and orientation in the world',
+      'The resolution of the screen',
+      'How fast the game renders'
+    ],
+    correctIndex: 1,
+    explanation: 'The View Matrix transforms world coordinates into camera space (view space). It effectively "moves the world" so that the camera is at the origin looking down the negative Z axis.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the 3D vector magnitude formula:',
+    codeTemplate: `function magnitude3D(v) {
+  return Math.sqrt(v.x * v.x + v.y * v.y + ___);
+}`,
+    answers: ['v.z * v.z'],
+    explanation: 'The 3D magnitude extends the 2D Pythagorean theorem: √(x² + y² + z²). We simply add the squared Z component under the square root.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In the MVP matrix pipeline, what does MVP stand for?',
+    options: [
+      'Most Valuable Player',
+      'Model, View, Projection',
+      'Matrix, Vector, Point',
+      'Movement, Velocity, Position'
+    ],
+    correctIndex: 1,
+    explanation: 'MVP stands for Model, View, Projection — the three matrices multiplied together to transform vertices from local object space to clip space for rendering.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'Why are quaternions preferred over Euler angles for rotation in games?',
+    options: [
+      'They use less memory',
+      'They are easier to understand',
+      'They avoid gimbal lock and interpolate smoothly',
+      'They render faster'
+    ],
+    correctIndex: 2,
+    explanation: 'Quaternions (4D rotation representation) avoid gimbal lock entirely and allow smooth interpolation between rotations (SLERP). This is why all modern game engines use them internally.'
+  }
+];
+
+// Code snippets
+const codeVector3D = `// A 3D vector has three components: x, y, z
+const position = { x: 10, y: 5, z: 20 };
+
+// Magnitude in 3D (Pythagorean theorem extended)
+function magnitude3D(v) {
+    return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+}
+
+// Normalize a 3D vector
+function normalize3D(v) {
+    const mag = magnitude3D(v);
+    if (mag === 0) return { x: 0, y: 0, z: 0 };
+    return { x: v.x / mag, y: v.y / mag, z: v.z / mag };
+}
+
+// Cross product - gives perpendicular vector
+function cross(a, b) {
+    return {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x
+    };
+}`;
+
+const codeTransformMatrix = `// 3D transformation matrices (4x4 for homogeneous coordinates)
+
+// Translation matrix
+function translationMatrix(tx, ty, tz) {
+    return [
+        [1, 0, 0, tx],
+        [0, 1, 0, ty],
+        [0, 0, 1, tz],
+        [0, 0, 0, 1]
+    ];
+}
+
+// Scale matrix
+function scaleMatrix(sx, sy, sz) {
+    return [
+        [sx, 0,  0,  0],
+        [0,  sy, 0,  0],
+        [0,  0,  sz, 0],
+        [0,  0,  0,  1]
+    ];
+}
+
+// Rotation around Y axis (yaw)
+function rotationY(angle) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return [
+        [c,  0, s, 0],
+        [0,  1, 0, 0],
+        [-s, 0, c, 0],
+        [0,  0, 0, 1]
+    ];
+}`;
+
+const codeHomogeneous = `// Why 4D? Because translation!
+// With 3x3, we can only do: v' = M × v
+// Translation would need: v' = M × v + t  (not a pure multiplication)
+
+// Homogeneous coordinates add a 4th component (w)
+// Point:  (x, y, z, 1)  - affected by translation
+// Vector: (x, y, z, 0)  - NOT affected by translation
+
+function transformPoint(matrix, point) {
+    // point = [x, y, z, 1]
+    return [
+        matrix[0][0]*point[0] + matrix[0][1]*point[1] + matrix[0][2]*point[2] + matrix[0][3],
+        matrix[1][0]*point[0] + matrix[1][1]*point[1] + matrix[1][2]*point[2] + matrix[1][3],
+        matrix[2][0]*point[0] + matrix[2][1]*point[1] + matrix[2][2]*point[2] + matrix[2][3],
+        1
+    ];
+}
+
+// Now we can combine translation, rotation, scale in ONE matrix!
+// finalMatrix = translation × rotation × scale
+// v_world = finalMatrix × v_local`;
+
+const codePerspective = `// Perspective projection matrix
+function perspectiveMatrix(fov, aspect, near, far) {
+    const f = 1.0 / Math.tan(fov / 2);
+    const nf = 1 / (near - far);
+    
+    return [
+        [f/aspect, 0, 0, 0],
+        [0, f, 0, 0],
+        [0, 0, (far+near)*nf, 2*far*near*nf],
+        [0, 0, -1, 0]  // The -1 enables perspective divide
+    ];
+}
+
+// After multiplying by projection matrix:
+// x_clip = ..., y_clip = ..., z_clip = ..., w_clip = -z
+
+// Perspective divide (NDC):
+// x_ndc = x_clip / w_clip
+// y_ndc = y_clip / w_clip
+// z_ndc = z_clip / w_clip
+
+// This is why far objects appear smaller!
+// Their w is larger, so x and y get divided more`;
+
+const codeViewMatrix = `// The view matrix "moves the world" so camera is at origin
+function lookAt(eye, target, up) {
+    // Camera's forward direction (looking at target)
+    const zAxis = normalize3D({
+        x: eye.x - target.x,
+        y: eye.y - target.y,
+        z: eye.z - target.z
+    });
+    
+    // Camera's right direction
+    const xAxis = normalize3D(cross(up, zAxis));
+    
+    // Camera's true up direction
+    const yAxis = cross(zAxis, xAxis);
+    
+    // Build the view matrix
+    return [
+        [xAxis.x, xAxis.y, xAxis.z, -dot(xAxis, eye)],
+        [yAxis.x, yAxis.y, yAxis.z, -dot(yAxis, eye)],
+        [zAxis.x, zAxis.y, zAxis.z, -dot(zAxis, eye)],
+        [0, 0, 0, 1]
+    ];
+}
+
+// Usage: camera at (0, 10, 20) looking at origin
+const view = lookAt(
+    { x: 0, y: 10, z: 20 },  // eye position
+    { x: 0, y: 0, z: 0 },    // target
+    { x: 0, y: 1, z: 0 }     // up direction
+);`;
+
+const codeQuaternion = `// A quaternion is a 4D number: q = w + xi + yj + zk
+// Or stored as: { w, x, y, z }
+
+// Create quaternion from axis-angle
+function fromAxisAngle(axis, angle) {
+    const halfAngle = angle / 2;
+    const s = Math.sin(halfAngle);
+    return {
+        w: Math.cos(halfAngle),
+        x: axis.x * s,
+        y: axis.y * s,
+        z: axis.z * s
+    };
+}
+
+// Multiply quaternions (combines rotations)
+function multiplyQuat(a, b) {
+    return {
+        w: a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z,
+        x: a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,
+        y: a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,
+        z: a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w
+    };
+}
+
+// SLERP - smooth interpolation between rotations
+function slerp(q1, q2, t) {
+    // Spherical Linear intERPolation
+    // Used for smooth camera transitions, animations, etc.
+    const dot = q1.w*q2.w + q1.x*q2.x + q1.y*q2.y + q1.z*q2.z;
+    const theta = Math.acos(dot);
+    const sinTheta = Math.sin(theta);
+    
+    const s1 = Math.sin((1-t) * theta) / sinTheta;
+    const s2 = Math.sin(t * theta) / sinTheta;
+    
+    return {
+        w: s1*q1.w + s2*q2.w,
+        x: s1*q1.x + s2*q2.x,
+        y: s1*q1.y + s2*q2.y,
+        z: s1*q1.z + s2*q2.z
+    };
+}`;
+
+const codeMVP = `// The full rendering pipeline: Local → World → View → Clip → NDC → Screen
+
+// 1. MODEL MATRIX: local space → world space
+const model = multiplyMatrices(
+    translationMatrix(worldX, worldY, worldZ),
+    rotationY(objectRotation),
+    scaleMatrix(objectScale, objectScale, objectScale)
+);
+
+// 2. VIEW MATRIX: world space → camera/view space
+const view = lookAt(cameraPos, cameraTarget, worldUp);
+
+// 3. PROJECTION MATRIX: view space → clip space
+const projection = perspectiveMatrix(fov, aspectRatio, near, far);
+
+// 4. Combine into MVP (multiply right to left!)
+const mvp = multiplyMatrices(projection, view, model);
+
+// 5. Transform each vertex
+for (const vertex of mesh.vertices) {
+    // Apply MVP transformation
+    const clip = transformPoint(mvp, [vertex.x, vertex.y, vertex.z, 1]);
+    
+    // Perspective divide → NDC
+    const ndc = {
+        x: clip[0] / clip[3],
+        y: clip[1] / clip[3],
+        z: clip[2] / clip[3]
+    };
+    
+    // Viewport transform → Screen pixels
+    const screen = {
+        x: (ndc.x + 1) * screenWidth / 2,
+        y: (1 - ndc.y) * screenHeight / 2  // Y is flipped
+    };
+}`;
+---
+
+<ModuleLayout 
+  title="Intro to 3D Math"
+  moduleNumber="★"
+  projectName="Solar System"
+  prevModule={{ href: '/modules/09-interpolation/', title: 'Interpolation & Animation' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl p-6 mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#ffd43b]" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span class="text-[#ffd43b] font-bold uppercase tracking-wider text-sm">Bonus Module</span>
+      </div>
+      <p class="text-text-secondary">
+        Welcome to the exciting world of 3D graphics! This bonus module covers the mathematical foundations 
+        that power every 3D game and application. You'll learn how vertices are transformed from local 
+        object space all the way to pixels on your screen.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: 3D Vectors -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M15 6a9 9 0 0 0-9 9"/><path d="M18 15v6"/><path d="M21 18h-6"/></svg>
+      1. 3D Vectors
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Everything you learned about 2D vectors extends naturally to 3D — we just add a third component: 
+      <strong class="text-white">Z</strong> (depth). In most coordinate systems:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <span class="w-4 h-4 rounded bg-[#ff6b6b]"></span>
+        <strong class="text-[#ff6b6b]">X</strong> — Left/Right (horizontal)
+      </li>
+      <li class="flex items-center gap-2">
+        <span class="w-4 h-4 rounded bg-[#51cf66]"></span>
+        <strong class="text-[#51cf66]">Y</strong> — Up/Down (vertical)
+      </li>
+      <li class="flex items-center gap-2">
+        <span class="w-4 h-4 rounded bg-[#339af0]"></span>
+        <strong class="text-[#339af0]">Z</strong> — Forward/Back (depth)
+      </li>
+    </ul>
+
+    <p class="text-text-secondary mb-6">
+      We also gain a new operation: the <strong class="text-white">cross product</strong>, which gives us 
+      a vector perpendicular to two input vectors. This is essential for calculating surface normals and 
+      camera orientation!
+    </p>
+
+    <CodeBlock client:load code={codeVector3D} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: 3D Vector Visualizer</h3>
+    <Vector3DVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 2: Transformation Matrices -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+      2. Transformation Matrices
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Just like in 2D, we use matrices to transform objects in 3D. The three fundamental transformations are:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#51cf66] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        <span><strong class="text-white">Translation</strong> — Move the object to a new position</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#ffd43b] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        <span><strong class="text-white">Rotation</strong> — Spin around X, Y, or Z axis (or arbitrary axis)</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#ff6b6b] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8"/><path d="M3 16.2V21m0 0h4.8M3 21l6-6"/><path d="M21 7.8V3m0 0h-4.8M21 3l-6 6"/><path d="M3 7.8V3m0 0h4.8M3 3l6 6"/></svg>
+        <span><strong class="text-white">Scale</strong> — Make the object bigger or smaller</span>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeTransformMatrix} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Matrix Transformation Playground</h3>
+    <MatrixTransformDemo client:visible />
+  </section>
+
+  <!-- Lesson 3: Homogeneous Coordinates -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+      3. Homogeneous Coordinates
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Here's a problem: with 3x3 matrices, we can do rotation and scale, but <strong class="text-white">not translation</strong> 
+      via matrix multiplication. Translation needs to be added separately!
+    </p>
+    
+    <p class="text-text-secondary mb-6">
+      The solution is <strong class="text-white">homogeneous coordinates</strong> — we add a 4th dimension (W) to our vectors 
+      and use <strong class="text-white">4x4 matrices</strong>. Now we can combine ALL transformations into a single matrix!
+    </p>
+
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <p class="text-sm text-text-secondary mb-2">Key insight:</p>
+      <ul class="text-sm space-y-1">
+        <li class="text-accent">• Points use <code class="bg-black/30 px-1 rounded">(x, y, z, 1)</code> — affected by translation</li>
+        <li class="text-accent">• Vectors use <code class="bg-black/30 px-1 rounded">(x, y, z, 0)</code> — NOT affected by translation</li>
+      </ul>
+    </div>
+
+    <CodeBlock client:load code={codeHomogeneous} language="javascript" />
+  </section>
+
+  <!-- Lesson 4: Camera & Projection -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+      4. Camera & Projection
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      The <strong class="text-white">projection matrix</strong> determines how 3D coordinates are mapped to your 2D screen. 
+      There are two main types:
+    </p>
+
+    <CodeBlock client:load code={codePerspective} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Projection Comparison</h3>
+    <ProjectionComparison client:visible />
+  </section>
+
+  <!-- Lesson 5: View Matrix -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      5. View Matrix
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Instead of moving the camera around the world, it's easier to think of it as <strong class="text-white">moving 
+      the entire world</strong> so the camera ends up at the origin looking down -Z. The <strong class="text-white">view matrix</strong> 
+      does exactly this transformation.
+    </p>
+    
+    <p class="text-text-secondary mb-6">
+      The classic <code class="bg-bg-secondary px-2 py-0.5 rounded">lookAt</code> function builds a view matrix from:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1"/></svg>
+        <strong class="text-white">Eye</strong> — Where the camera is
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        <strong class="text-white">Target</strong> — What the camera looks at
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        <strong class="text-white">Up</strong> — Which way is "up" for the camera
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeViewMatrix} language="javascript" />
+  </section>
+
+  <!-- Lesson 6: Quaternions -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
+      6. Quaternions
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Euler angles (pitch, yaw, roll) are intuitive but suffer from <strong class="text-white">gimbal lock</strong> — 
+      when two rotation axes align, you lose a degree of freedom. This causes weird artifacts in animations and camera controls.
+    </p>
+    
+    <p class="text-text-secondary mb-6">
+      <strong class="text-white">Quaternions</strong> are 4D complex numbers that represent rotation without these problems. 
+      They're used in every modern game engine!
+    </p>
+
+    <CodeBlock client:load code={codeQuaternion} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Gimbal Lock Demonstration</h3>
+    <GimbalLockDemo client:visible />
+  </section>
+
+  <!-- Lesson 7: The Rendering Pipeline -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/><path d="m15 5 3 3"/></svg>
+      7. Putting It Together: The Rendering Pipeline
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Now let's see how all these matrices work together to transform a vertex from a 3D model 
+      all the way to a pixel on your screen!
+    </p>
+
+    <RenderingPipeline client:visible />
+    
+    <div class="mt-8">
+      <CodeBlock client:load code={codeMVP} language="javascript" />
+    </div>
+  </section>
+
+  <!-- Project: Solar System -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      Project: 3D Solar System
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Now let's see 3D math in action! This interactive solar system demonstrates:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        3D coordinate systems and positioning
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Orbital mechanics using trigonometry
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Camera controls (orbit, zoom, pan)
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Perspective projection
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Real-time matrix transformations
+      </li>
+    </ul>
+
+    <SolarSystem client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of 3D math concepts!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="3D Math Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="13-3d-intro" 
+      moduleName="Intro to 3D Math"
+    />
+  </section>
+
+  <!-- What's Next -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
+      Where to Go From Here
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Congratulations! You've learned the fundamental math behind 3D graphics. Here's what you can explore next:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Three.js Deep Dive:</strong> Build more complex 3D scenes with shaders and post-processing
+      </li>
+      <li>
+        <strong class="text-white">WebGPU:</strong> Learn the next-generation graphics API for even more control
+      </li>
+      <li>
+        <strong class="text-white">Game Engines:</strong> Apply these concepts in Unity, Unreal, or Godot
+      </li>
+      <li>
+        <strong class="text-white">Advanced Topics:</strong> Normal mapping, skeletal animation, ray tracing
+      </li>
+    </ol>
+
+    <div class="mt-8 p-6 bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#ffd43b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+        <span class="text-[#ffd43b] font-bold">Bonus Complete!</span>
+      </div>
+      <p class="text-text-secondary">
+        You've completed all available modules in Game Math Lab! Keep experimenting with the 
+        projects and check back for more advanced content.
+      </p>
+    </div>
+  </section>
+</ModuleLayout>

@@ -1,0 +1,809 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import ParticleSystem, { SingleParticleDemo, EmitterShapeDemo, PoolingDemo, BlendModeDemo, EffectBuilder } from '../../../components/modules/ParticleSystem';
+import Quiz from '../../../components/lessons/Quiz';
+
+// Code snippets
+const codeParticleBasics = `// A PARTICLE is just a simple object with:
+interface Particle {
+    x: number;        // Position X
+    y: number;        // Position Y
+    vx: number;       // Velocity X
+    vy: number;       // Velocity Y
+    life: number;     // Time remaining (seconds)
+    maxLife: number;  // Initial lifetime
+}
+
+// Each frame, update the particle:
+function updateParticle(p: Particle, dt: number) {
+    // Move based on velocity
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    
+    // Decrease lifetime
+    p.life -= dt;
+    
+    // Particle is "dead" when life reaches 0
+    return p.life > 0;
+}`;
+
+const codeEmitters = `// EMITTERS spawn particles at specific locations/patterns
+
+// Point Emitter - all particles from one spot
+function spawnFromPoint(x: number, y: number) {
+    return { x, y };
+}
+
+// Line Emitter - particles along a line
+function spawnFromLine(x: number, y: number, width: number) {
+    return { 
+        x: x - width/2 + Math.random() * width, 
+        y 
+    };
+}
+
+// Circle Emitter - particles within a circle
+function spawnFromCircle(x: number, y: number, radius: number) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.random() * radius;
+    return {
+        x: x + Math.cos(angle) * r,
+        y: y + Math.sin(angle) * r
+    };
+}
+
+// Box Emitter - particles within a rectangle
+function spawnFromBox(x: number, y: number, w: number, h: number) {
+    return {
+        x: x - w/2 + Math.random() * w,
+        y: y - h/2 + Math.random() * h
+    };
+}`;
+
+const codePhysics = `// Particle physics - applying forces
+
+function updateParticle(p: Particle, dt: number, config: Config) {
+    // GRAVITY - constant downward (or upward!) acceleration
+    p.vy += config.gravity * dt;  // Positive = down, negative = up
+    
+    // WIND - constant horizontal force
+    p.vx += config.wind * dt;
+    
+    // DRAG - resistance that slows particles
+    // Multiply velocity by a value less than 1
+    p.vx *= config.drag;  // e.g., 0.98
+    p.vy *= config.drag;
+    
+    // Update position
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    
+    // Update life
+    p.life -= dt;
+}
+
+// Example configs for different effects:
+const fireConfig = { gravity: -80, wind: 0, drag: 0.98 };    // Rises up
+const rainConfig = { gravity: 300, wind: 30, drag: 1.0 };    // Falls fast
+const smokeConfig = { gravity: -20, wind: 15, drag: 0.99 };  // Drifts slowly`;
+
+const codeInterpolation = `// Interpolate properties over particle lifetime
+
+function lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t;
+}
+
+function lerpColor(a: RGB, b: RGB, t: number): RGB {
+    return {
+        r: Math.round(lerp(a.r, b.r, t)),
+        g: Math.round(lerp(a.g, b.g, t)),
+        b: Math.round(lerp(a.b, b.b, t))
+    };
+}
+
+function updateParticleVisuals(p: Particle) {
+    // lifeRatio: 1.0 at birth, 0.0 at death
+    const lifeRatio = p.life / p.maxLife;
+    
+    // SIZE: shrink over time (start big, end small)
+    p.size = lerp(p.endSize, p.startSize, lifeRatio);
+    
+    // COLOR: transition from startColor to endColor
+    p.color = lerpColor(p.endColor, p.startColor, lifeRatio);
+    
+    // ALPHA: fade out as particle dies
+    p.alpha = lifeRatio;  // 1.0 → 0.0
+}
+
+// Fire example: Start yellow, end red, shrink and fade
+const fireParticle = {
+    startSize: 20, endSize: 5,
+    startColor: { r: 255, g: 200, b: 50 },  // Yellow
+    endColor: { r: 255, g: 50, b: 0 }       // Red
+};`;
+
+const codePooling = `// OBJECT POOLING - reuse particles instead of creating new ones
+
+class ParticlePool {
+    private pool: Particle[] = [];      // Available particles
+    private active: Particle[] = [];    // Currently in use
+    
+    constructor(maxSize: number) {
+        // Pre-create all particles at startup
+        for (let i = 0; i < maxSize; i++) {
+            this.pool.push(this.createParticle());
+        }
+    }
+    
+    spawn(config: Partial<Particle>): Particle | null {
+        // Grab a particle from the pool
+        let particle = this.pool.pop();
+        
+        if (!particle) {
+            return null;  // Pool is empty!
+        }
+        
+        // Reset and configure the particle
+        Object.assign(particle, config, { active: true });
+        this.active.push(particle);
+        return particle;
+    }
+    
+    release(particle: Particle): void {
+        // Return particle to the pool for reuse
+        particle.active = false;
+        const index = this.active.indexOf(particle);
+        if (index > -1) {
+            this.active.splice(index, 1);
+            this.pool.push(particle);  // Back to pool!
+        }
+    }
+}
+
+// WHY POOLING?
+// - No garbage collection pauses (huge for games!)
+// - Faster than creating new objects
+// - Predictable memory usage`;
+
+const codeBlendModes = `// BLEND MODES change how particles combine visually
+
+// NORMAL (source-over): Standard alpha blending
+// Particles cover what's behind them
+ctx.globalCompositeOperation = 'source-over';
+
+// ADDITIVE (lighter): Colors ADD together
+// Great for: fire, lasers, magic, glowing effects
+// Two red particles = BRIGHTER red, not darker!
+ctx.globalCompositeOperation = 'lighter';
+
+// MULTIPLY: Colors multiply, result is darker
+// Great for: shadows, smoke over bright areas
+ctx.globalCompositeOperation = 'multiply';
+
+// SCREEN: Inverse multiply, result is lighter
+// Great for: lens flares, light beams
+ctx.globalCompositeOperation = 'screen';
+
+// Drawing with blend mode:
+function drawParticles(ctx, particles, blendMode) {
+    ctx.globalCompositeOperation = blendMode;
+    
+    for (const p of particles) {
+        ctx.fillStyle = \`rgba(\${p.r}, \${p.g}, \${p.b}, \${p.alpha})\`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // Reset to normal after drawing
+    ctx.globalCompositeOperation = 'source-over';
+}`;
+
+const codeEffects = `// COMMON PARTICLE EFFECTS
+
+// FIRE - rises, orange/red, additive glow
+const fire = {
+    gravity: -80,           // Float upward
+    startColor: [255, 200, 50],
+    endColor: [255, 50, 0],
+    blendMode: 'additive',
+    emitter: 'line',        // Wide base
+    lifetime: 0.5-1.5
+};
+
+// SMOKE - slow rise, gray, normal blend
+const smoke = {
+    gravity: -20,           // Slow rise
+    wind: 15,               // Drift sideways
+    startColor: [100, 100, 100],
+    endColor: [50, 50, 50],
+    startSize: 10,
+    endSize: 40,            // EXPAND over time
+    blendMode: 'normal'
+};
+
+// EXPLOSION - burst from point, fast
+const explosion = {
+    gravity: 50,            // Fall after burst
+    speed: 150-350,         // Fast initial speed
+    spread: Math.PI * 2,    // All directions
+    burst: true,            // All at once
+    burstCount: 50
+};
+
+// RAIN - fast fall, slight wind
+const rain = {
+    gravity: 300,
+    wind: 30,
+    emitter: 'line',        // Top of screen
+    startSize: 3,
+    endSize: 3,             // No shrink
+    alphaFade: false        // No fade
+};
+
+// MAGIC - floats, color shift, glow
+const magic = {
+    gravity: -30,           // Gentle float
+    startColor: [150, 100, 255],
+    endColor: [50, 200, 255],
+    blendMode: 'additive'
+};`;
+
+// Quiz questions
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'What properties define a basic particle?',
+    options: [
+      'Only position (x, y)',
+      'Position, velocity, and lifetime',
+      'Just color and size',
+      'Only velocity'
+    ],
+    correctIndex: 1,
+    explanation: 'A basic particle needs position (where it is), velocity (where it\'s going), and lifetime (how long it lives). Additional properties like size, color, and alpha are often added for visual variety.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Which emitter type would you use for rain falling from the sky?',
+    options: ['Point emitter', 'Circle emitter', 'Line emitter', 'Box emitter'],
+    correctIndex: 2,
+    explanation: 'A line emitter spawns particles along a horizontal line - perfect for rain falling from the top of the screen across its entire width.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'To make fire particles rise upward, what gravity value should you use?',
+    options: ['Positive (e.g., 100)', 'Negative (e.g., -80)', 'Zero', 'It doesn\'t matter'],
+    correctIndex: 1,
+    explanation: 'Negative gravity makes particles accelerate upward (against normal gravity). Fire uses negative gravity to make flames rise.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the code to calculate how much life the particle has remaining (0 to 1):',
+    codeTemplate: 'const lifeRatio = p.life / p.___;',
+    answers: ['maxLife', 'maxlife', 'max_life'],
+    explanation: 'lifeRatio = life / maxLife gives us a value from 1 (just spawned) to 0 (about to die). This is used to interpolate size, color, and alpha over the particle\'s lifetime.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is the main benefit of object pooling for particles?',
+    options: [
+      'Makes particles look better',
+      'Allows more colors',
+      'Eliminates garbage collection pauses',
+      'Makes particles faster'
+    ],
+    correctIndex: 2,
+    explanation: 'Object pooling reuses particle objects instead of creating/destroying them. This prevents garbage collection pauses that can cause stuttering in games. It\'s a crucial optimization for particle-heavy effects.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Which blend mode makes overlapping particles brighter (good for fire/magic)?',
+    options: ['Normal', 'Multiply', 'Additive', 'Screen'],
+    correctIndex: 2,
+    explanation: 'Additive blending (\'lighter\' in Canvas) adds colors together, making overlapping areas brighter. This creates a glowing effect perfect for fire, lasers, and magic.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'For a smoke effect, how should particle SIZE change over lifetime?',
+    options: [
+      'Start big, end small',
+      'Start small, end big',
+      'Stay the same',
+      'Randomly change'
+    ],
+    correctIndex: 1,
+    explanation: 'Smoke particles should start small and expand as they rise, simulating how smoke disperses in air. This is the opposite of fire, which shrinks as it dissipates.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What\'s the difference between burst mode and continuous emission?',
+    options: [
+      'Burst uses more memory',
+      'Continuous is faster',
+      'Burst spawns all particles at once, continuous spawns over time',
+      'There is no difference'
+    ],
+    correctIndex: 2,
+    explanation: 'Burst mode spawns many particles instantly (like an explosion), while continuous mode spawns particles steadily over time (like fire or rain). Choose based on the effect you want.'
+  }
+];
+---
+
+<ModuleLayout 
+  title="Particle Systems"
+  moduleNumber="10"
+  projectName="VFX Toolkit"
+  prevModule={{ href: '/modules/09-interpolation/', title: 'Interpolation & Animation' }}
+  nextModule={{ href: '/modules/11-procedural/', title: 'Procedural Generation' }}
+>
+  <!-- Lesson 1: Particle Basics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. Particle Basics</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Particle systems</strong> create visual effects by simulating hundreds or thousands of 
+      small, simple objects called <em>particles</em>. Fire, smoke, explosions, rain, magic spells — all 
+      built from the same basic concept.
+    </p>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-6 mb-6">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        What is a Particle?
+      </h3>
+      <p class="text-text-secondary mb-3">A particle is the simplest possible game object:</p>
+      <ul class="list-none space-y-2 text-text-secondary">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><strong class="text-white">Position</strong> — where is it? (x, y)</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><strong class="text-white">Velocity</strong> — where is it going? (vx, vy)</span>
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><strong class="text-white">Lifetime</strong> — how long does it live?</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeParticleBasics} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Watch a single particle respond to forces. Adjust gravity, wind, and drag to see how they affect motion:
+    </p>
+
+    <SingleParticleDemo client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#00b894]">Key Insight:</strong> The magic of particle systems comes from combining many simple 
+        particles. Each one follows basic physics, but together they create complex, organic-looking effects.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: Emitters -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Emitters</h2>
+    
+    <p class="text-text-secondary mb-4">
+      An <strong class="text-white">emitter</strong> controls <em>where</em> particles spawn. Different emitter shapes 
+      create different effects — a point creates explosions, a line creates rain, a circle creates auras.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+          Point
+        </h3>
+        <p class="text-sm text-text-secondary">All particles from one location. Explosions, magic bursts, impacts.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Line
+        </h3>
+        <p class="text-sm text-text-secondary">Particles along a line. Rain, waterfalls, fire bases, curtains.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#74b9ff]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#74b9ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+          Circle
+        </h3>
+        <p class="text-sm text-text-secondary">Particles within a circular area. Smoke, auras, portals, healing.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#fdcb6e]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+          Box
+        </h3>
+        <p class="text-sm text-text-secondary">Particles within a rectangle. Area effects, ground fog, ambient dust.</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeEmitters} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Compare how different emitter shapes affect particle distribution:
+    </p>
+
+    <EmitterShapeDemo client:visible />
+  </section>
+
+  <!-- Lesson 3: Particle Physics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. Particle Physics</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Particles respond to <strong class="text-white">forces</strong> that change their velocity over time. 
+      Three key forces shape most effects:
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/></svg>
+          Gravity
+        </h3>
+        <p class="text-sm text-text-secondary">Constant vertical force. Positive = fall down, negative = rise up (fire!).</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#74b9ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+          Wind
+        </h3>
+        <p class="text-sm text-text-secondary">Constant horizontal force. Makes smoke drift, rain angle sideways.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          Drag
+        </h3>
+        <p class="text-sm text-text-secondary">Air resistance. Slows particles over time. 0.98 = gradual, 0.9 = heavy.</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codePhysics} /></pre>
+    </div>
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#fdcb6e]">Pro Tip:</strong> Drag is a multiplier (0.98), not an addition. 
+        Each frame: <code>velocity *= drag</code>. Values close to 1.0 = little drag, values like 0.9 = heavy drag.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: Interpolation Over Lifetime -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Interpolation Over Lifetime</h2>
+    
+    <p class="text-text-secondary mb-4">
+      The best particle effects <strong class="text-white">change over time</strong>. A fire particle should start 
+      bright yellow and fade to dark red. Smoke should start small and expand. This is done with 
+      <strong class="text-white">lifetime interpolation</strong>.
+    </p>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Size</strong> — shrink for fire, expand for smoke</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Color</strong> — yellow to red, white to gray</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Alpha</strong> — fade out as particle dies</span>
+      </li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeInterpolation} /></pre>
+    </div>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        <span><strong class="text-[#6c5ce7]">Key Formula:</strong> <code>lifeRatio = life / maxLife</code> gives you 
+        a 0-1 value perfect for lerp. At birth it's 1.0, at death it's 0.0.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 5: Object Pooling -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Object Pooling</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Creating and destroying thousands of particles every second would cause major performance problems — 
+      the garbage collector would constantly pause to clean up dead particles.
+    </p>
+
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Object pooling</strong> solves this by <em>reusing</em> particles. When a particle 
+      "dies", it goes back to a pool. When we need a new particle, we grab one from the pool instead of creating it.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codePooling} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Watch the pool in action — particles move between "active" and "pooled" states:
+    </p>
+
+    <PoolingDemo client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#00b894]">Why It Matters:</strong> Without pooling, spawning 100 particles/second 
+        for 60 seconds creates 6,000 objects. The garbage collector will eventually pause to clean these up, 
+        causing visible stuttering. Pooling eliminates this entirely.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 6: Blend Modes -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">6. Blend Modes & Rendering</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Blend modes</strong> control how particle colors combine with what's behind them. 
+      The right blend mode can make the difference between flat-looking particles and stunning visual effects.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">Normal (source-over)</h3>
+        <p class="text-sm text-text-secondary">Standard alpha blending. Particles cover what's behind. Use for smoke, dust.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#fdcb6e]">
+        <h3 class="font-bold text-[#fdcb6e] mb-2">Additive (lighter)</h3>
+        <p class="text-sm text-text-secondary">Colors ADD together — overlapping = brighter! Perfect for fire, magic, lasers.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">Multiply</h3>
+        <p class="text-sm text-text-secondary">Colors multiply, result is darker. Good for shadows on light backgrounds.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">Screen</h3>
+        <p class="text-sm text-text-secondary">Inverse multiply, result is lighter. Like projecting light on a screen.</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeBlendModes} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      See how the same particles look with different blend modes:
+    </p>
+
+    <BlendModeDemo client:visible />
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#fdcb6e]">Hot Tip:</strong> Additive blending is THE secret to glowing effects. 
+        Where particles overlap, colors add up and get brighter — exactly like real light!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 7: Common Effects -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">7. Common Effects</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Let's put it all together! Here are the settings for common game effects:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeEffects} /></pre>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-t-4 border-[#e17055]">
+        <h3 class="font-bold text-[#e17055] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+          Fire
+        </h3>
+        <p class="text-sm text-text-secondary">Negative gravity (rise), yellow→red, additive, shrink</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-t-4 border-[#636e72]">
+        <h3 class="font-bold text-[#636e72] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+          Smoke
+        </h3>
+        <p class="text-sm text-text-secondary">Light gravity (slow rise), wind drift, gray, expand, normal blend</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-t-4 border-[#fdcb6e]">
+        <h3 class="font-bold text-[#fdcb6e] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Explosion
+        </h3>
+        <p class="text-sm text-text-secondary">Burst mode, high speed, all directions, quick fade</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-t-4 border-[#74b9ff]">
+        <h3 class="font-bold text-[#74b9ff] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></svg>
+          Rain
+        </h3>
+        <p class="text-sm text-text-secondary">Line emitter (top), high gravity, slight wind, no fade</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-t-4 border-[#dfe6e9]">
+        <h3 class="font-bold text-[#dfe6e9] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="22"/><line x1="20" x2="20" y1="8" y2="16"/><line x1="4" x2="4" y1="8" y2="16"/><line x1="8" x2="16" y1="4" y2="4"/><line x1="8" x2="16" y1="20" y2="20"/></svg>
+          Snow
+        </h3>
+        <p class="text-sm text-text-secondary">Low gravity (drift), gentle wind, long life, white</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-t-4 border-[#a29bfe]">
+        <h3 class="font-bold text-[#a29bfe] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+          Magic
+        </h3>
+        <p class="text-sm text-text-secondary">Light upward, color shift, additive glow, circle emitter</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Project: VFX Toolkit -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: VFX Toolkit
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      The complete particle system! Select presets or build your own custom effects:
+    </p>
+
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">7 preset effects</strong> — Fire, smoke, explosion, sparks, rain, snow, magic</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Emitter types</strong> — Point, line, circle, box</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Full control</strong> — Count, lifetime, gravity, wind, size, colors</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Burst mode</strong> — Trigger explosions on demand</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Object pooling</strong> — Smooth performance with hundreds of particles</span>
+      </li>
+    </ul>
+
+    <ParticleSystem client:visible />
+  </section>
+
+  <!-- Effect Builder -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+      Effect Builder
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Experiment with settings to create your own unique effects:
+    </p>
+
+    <EffectBuilder client:visible />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Trail Effect:</strong> Make particles leave a fading trail behind moving objects
+      </li>
+      <li>
+        <strong class="text-white">Particle Collision:</strong> Add collision detection between particles and world geometry
+      </li>
+      <li>
+        <strong class="text-white">Texture Particles:</strong> Replace circles with sprite images for more detailed effects
+      </li>
+      <li>
+        <strong class="text-white">Particle Attractors:</strong> Create gravity wells that pull particles toward them
+      </li>
+      <li>
+        <strong class="text-white">Combo Effects:</strong> Layer multiple particle systems for complex effects (fire + smoke + sparks)
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formula Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+      Quick Reference
+    </h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">Core Update Loop</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>p.vy += gravity × dt</code></li>
+            <li><code>p.vx += wind × dt</code></li>
+            <li><code>p.vx *= drag</code></li>
+            <li><code>p.vy *= drag</code></li>
+            <li><code>p.x += p.vx × dt</code></li>
+            <li><code>p.y += p.vy × dt</code></li>
+            <li><code>p.life -= dt</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Lifetime Interpolation</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>lifeRatio = life / maxLife</code></li>
+            <li><code>size = lerp(endSize, startSize, lifeRatio)</code></li>
+            <li><code>color = lerpColor(endColor, startColor, lifeRatio)</code></li>
+            <li><code>alpha = lifeRatio</code> (for fade)</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Emitter Types</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#6c5ce7]">Point</code> — Explosions, impacts</li>
+            <li><code class="text-[#00b894]">Line</code> — Rain, waterfalls</li>
+            <li><code class="text-[#74b9ff]">Circle</code> — Smoke, auras</li>
+            <li><code class="text-[#fdcb6e]">Box</code> — Area effects</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Blend Modes</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>source-over</code> — Normal (smoke)</li>
+            <li><code class="text-[#fdcb6e]">lighter</code> — Additive (fire, magic)</li>
+            <li><code>multiply</code> — Darken</li>
+            <li><code>screen</code> — Lighten</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of particle systems! Use number keys 1-4 to select answers.
+    </p>
+    <Quiz 
+      client:visible 
+      title="Particle Systems Quiz" 
+      questions={quizQuestions} 
+    />
+  </section>
+</ModuleLayout>

@@ -1,0 +1,748 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import WolfensteinRenderer, { SingleRayDemo, DDADemo, FisheyeDemo, TextureMappingDemo } from '../../../components/modules/WolfensteinRenderer';
+import Quiz from '../../../components/lessons/Quiz';
+
+// Code snippets
+const codeRayBasics = `// A RAY is a line starting from a point extending infinitely
+// In raycasting, we cast rays from the player's view
+
+interface Ray {
+    origin: { x: number, y: number };  // Starting point (player position)
+    direction: { x: number, y: number }; // Normalized direction vector
+}
+
+// To create a ray at a specific angle:
+function createRay(playerX: number, playerY: number, angle: number): Ray {
+    return {
+        origin: { x: playerX, y: playerY },
+        direction: {
+            x: Math.cos(angle),  // X component of direction
+            y: Math.sin(angle)   // Y component of direction
+        }
+    };
+}
+
+// For a first-person view, we cast many rays across the FOV:
+function castRaysForView(player: Player, fov: number, numRays: number) {
+    const rays = [];
+    const startAngle = player.angle - fov / 2;
+    const angleStep = fov / numRays;
+    
+    for (let i = 0; i < numRays; i++) {
+        const rayAngle = startAngle + i * angleStep;
+        rays.push(createRay(player.x, player.y, rayAngle));
+    }
+    return rays;
+}`;
+
+const codeDDA = `// DDA (Digital Differential Analyzer) efficiently finds
+// where a ray intersects grid cell boundaries
+
+function castRay(player: Player, rayAngle: number, map: number[][]): RayHit {
+    const rayDirX = Math.cos(rayAngle);
+    const rayDirY = Math.sin(rayAngle);
+    
+    // Current map cell
+    let mapX = Math.floor(player.x);
+    let mapY = Math.floor(player.y);
+    
+    // Distance to travel to cross one X or Y cell boundary
+    const deltaDistX = Math.abs(1 / rayDirX);
+    const deltaDistY = Math.abs(1 / rayDirY);
+    
+    // Step direction (+1 or -1)
+    const stepX = rayDirX >= 0 ? 1 : -1;
+    const stepY = rayDirY >= 0 ? 1 : -1;
+    
+    // Distance to first X and Y boundary
+    let sideDistX = rayDirX >= 0
+        ? (mapX + 1 - player.x) * deltaDistX
+        : (player.x - mapX) * deltaDistX;
+    let sideDistY = rayDirY >= 0
+        ? (mapY + 1 - player.y) * deltaDistY
+        : (player.y - mapY) * deltaDistY;
+    
+    let side = 0;  // 0 = hit X side, 1 = hit Y side
+    
+    // DDA loop - step through cells until we hit a wall
+    while (map[mapY][mapX] === 0) {
+        // Step to whichever boundary is closer
+        if (sideDistX < sideDistY) {
+            sideDistX += deltaDistX;
+            mapX += stepX;
+            side = 0;  // Hit vertical (N/S) wall
+        } else {
+            sideDistY += deltaDistY;
+            mapY += stepY;
+            side = 1;  // Hit horizontal (E/W) wall
+        }
+    }
+    
+    // Calculate perpendicular distance (not Euclidean!)
+    return calculateHitInfo(player, mapX, mapY, side, stepX, stepY, rayDirX, rayDirY);
+}`;
+
+const codeWallDistance = `// CRITICAL: Use PERPENDICULAR distance, not Euclidean!
+
+// ❌ WRONG: Euclidean distance causes fisheye effect
+const euclideanDist = Math.sqrt(
+    (hitX - player.x) ** 2 + (hitY - player.y) ** 2
+);
+
+// ✅ CORRECT: Perpendicular distance to camera plane
+// This is the distance along the camera's view direction
+let perpWallDist;
+if (side === 0) {  // Hit vertical wall (N/S)
+    perpWallDist = (mapX - player.x + (1 - stepX) / 2) / rayDirX;
+} else {  // Hit horizontal wall (E/W)
+    perpWallDist = (mapY - player.y + (1 - stepY) / 2) / rayDirY;
+}
+
+// Calculate wall height from distance
+const screenHeight = 400;
+const lineHeight = screenHeight / perpWallDist;
+
+// Where to draw the wall stripe
+const drawStart = Math.max(0, (screenHeight - lineHeight) / 2);
+const drawEnd = Math.min(screenHeight, (screenHeight + lineHeight) / 2);`;
+
+const codeFisheye = `// WHY FISHEYE HAPPENS:
+// Rays at the edges of FOV travel further to hit the same wall
+// This makes walls appear curved (like a fisheye lens)
+
+// Visual explanation:
+//
+//    Wall
+//    |     <- Edge ray travels further
+//    |   /
+//    | /   <- Center ray (shortest)
+//    P     <- Player
+//    | \\
+//    |   \\
+//    |     <- Edge ray travels further
+//
+// SOLUTION: Multiply by cos(rayAngle - playerAngle)
+
+function correctFisheye(rawDistance: number, rayAngle: number, playerAngle: number): number {
+    // The angle difference between this ray and the center of view
+    const angleDiff = rayAngle - playerAngle;
+    
+    // Project onto the camera plane using cosine
+    // cos(0) = 1 for center, decreases toward edges
+    return rawDistance * Math.cos(angleDiff);
+}
+
+// This gives us the perpendicular distance to the camera plane,
+// making walls appear flat as they should be.`;
+
+const codeTextures = `// To render textured walls, we need to know WHERE on the wall we hit
+
+// 1. Calculate exact hit position (wallX is 0.0 to 1.0 across the wall)
+let wallX;
+if (side === 0) {  // Hit N/S wall
+    wallX = player.y + perpWallDist * rayDirY;
+} else {  // Hit E/W wall
+    wallX = player.x + perpWallDist * rayDirX;
+}
+wallX = wallX - Math.floor(wallX);  // Get fractional part (0 to 1)
+
+// 2. Map to texture X coordinate
+const texWidth = 64;  // Texture width in pixels
+let texX = Math.floor(wallX * texWidth);
+
+// 3. For each pixel in the wall column:
+for (let y = drawStart; y < drawEnd; y++) {
+    // Map screen Y to texture Y
+    const d = y - screenHeight / 2 + lineHeight / 2;
+    const texY = Math.floor((d * texWidth) / lineHeight);
+    
+    // Get pixel color from texture
+    const color = texture.getPixel(texX, texY);
+    
+    // Apply distance shading
+    const shade = 1.0 - (perpWallDist / maxViewDistance);
+    drawPixel(x, y, color * shade);
+}`;
+
+const codeFloorCeiling = `// FLOOR AND CEILING CASTING
+// For each pixel below/above the wall, calculate world position
+
+function renderFloorCeiling(screenX: number, wallEnd: number, screenHeight: number) {
+    // Floor casting uses the distance at each row
+    for (let y = wallEnd; y < screenHeight; y++) {
+        // Current row distance from center
+        const rowDistance = screenHeight / (2.0 * y - screenHeight);
+        
+        // Calculate world coordinates for this pixel
+        const floorX = player.x + rowDistance * rayDirX;
+        const floorY = player.y + rowDistance * rayDirY;
+        
+        // Get texture coordinates
+        const texX = Math.floor(floorX * texWidth) % texWidth;
+        const texY = Math.floor(floorY * texWidth) % texWidth;
+        
+        // Draw floor pixel
+        const floorColor = floorTexture.getPixel(texX, texY);
+        drawPixel(screenX, y, floorColor);
+        
+        // Draw ceiling (mirrored Y position)
+        const ceilingY = screenHeight - y;
+        const ceilColor = ceilingTexture.getPixel(texX, texY);
+        drawPixel(screenX, ceilingY, ceilColor);
+    }
+}`;
+
+const codeSprites = `// SPRITES: 2D images rendered in 3D space
+// They always face the player (billboarding)
+
+interface Sprite {
+    x: number;
+    y: number;
+    texture: ImageData;
+}
+
+function renderSprites(sprites: Sprite[], player: Player, zBuffer: number[]) {
+    // Sort by distance (draw far to near for correct overlap)
+    sprites.sort((a, b) => {
+        const distA = (player.x - a.x) ** 2 + (player.y - a.y) ** 2;
+        const distB = (player.x - b.x) ** 2 + (player.y - b.y) ** 2;
+        return distB - distA;  // Far first
+    });
+    
+    for (const sprite of sprites) {
+        // Transform sprite position to camera space
+        const spriteX = sprite.x - player.x;
+        const spriteY = sprite.y - player.y;
+        
+        // Inverse camera matrix for transformation
+        const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+        const transformX = invDet * (dirY * spriteX - dirX * spriteY);
+        const transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+        
+        if (transformY <= 0) continue;  // Behind camera
+        
+        // Calculate screen position and size
+        const spriteScreenX = (screenWidth / 2) * (1 + transformX / transformY);
+        const spriteHeight = Math.abs(screenHeight / transformY);
+        
+        // Draw sprite columns (check zBuffer to hide behind walls)
+        for (let x = spriteStartX; x < spriteEndX; x++) {
+            if (transformY < zBuffer[x]) {  // In front of wall
+                drawSpriteColumn(x, sprite, transformY);
+            }
+        }
+    }
+}`;
+
+// Quiz questions
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is the main advantage of using DDA (Digital Differential Analyzer) for raycasting?',
+    options: [
+      'It creates better graphics',
+      'It efficiently steps through grid cells without checking every pixel',
+      'It automatically adds textures to walls',
+      'It eliminates the need for trigonometry'
+    ],
+    correctIndex: 1,
+    explanation: 'DDA is efficient because it only checks cell boundaries, stepping exactly one cell at a time either in X or Y direction. This is much faster than checking every point along the ray.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Why does the fisheye effect occur in raycasting?',
+    options: [
+      'The screen resolution is too low',
+      'Rays at the edge of FOV travel further to hit the same wall',
+      'The textures are not loaded correctly',
+      'The map data is corrupted'
+    ],
+    correctIndex: 1,
+    explanation: 'Fisheye occurs because edge rays in the FOV travel a longer Euclidean distance to reach the same flat wall. This makes the wall appear curved. The fix is to use perpendicular distance instead.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the fisheye correction formula:',
+    codeTemplate: 'const correctedDist = rawDistance * Math.___(rayAngle - playerAngle);',
+    answers: ['cos'],
+    explanation: 'We multiply by the cosine of the angle difference to project the distance onto the camera plane. This converts Euclidean distance to perpendicular distance.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In DDA, what determines whether we step in X or Y direction?',
+    options: [
+      'The player\'s current position',
+      'Whichever boundary (X or Y) is closer to the ray',
+      'A random selection for variety',
+      'The texture of the nearest wall'
+    ],
+    correctIndex: 1,
+    explanation: 'DDA compares sideDistX and sideDistY (distances to next X and Y boundaries). It steps in the direction of whichever is smaller, ensuring we check cells in the correct order along the ray.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is "wallX" used for in texture mapping?',
+    options: [
+      'The X position of the wall in the map',
+      'The exact position (0-1) where the ray hit the wall surface',
+      'The width of the wall',
+      'The player\'s X position when looking at the wall'
+    ],
+    correctIndex: 1,
+    explanation: 'wallX is the fractional position (0.0 to 1.0) along the wall face where the ray hit. This is used to determine which column of the texture to sample for that ray.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Why are sprites sorted by distance before rendering?',
+    options: [
+      'To improve performance',
+      'To ensure far sprites are drawn first (painter\'s algorithm)',
+      'To calculate texture coordinates',
+      'Sprites don\'t need to be sorted'
+    ],
+    correctIndex: 1,
+    explanation: 'Sprites are sorted far-to-near so closer sprites are drawn on top of farther ones (painter\'s algorithm). Combined with the z-buffer check against walls, this creates correct depth ordering.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the perpendicular wall distance calculation for a vertical (N/S) wall:',
+    codeTemplate: 'perpWallDist = (mapX - player.x + (1 - stepX) / 2) / ray___;',
+    answers: ['DirX'],
+    explanation: 'For vertical walls (hit on X side), we divide by rayDirX to get the perpendicular distance. The (1 - stepX) / 2 term handles the offset depending on which side of the cell was hit.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is the purpose of the z-buffer in sprite rendering?',
+    options: [
+      'To store sprite colors',
+      'To track which sprites have been collected',
+      'To prevent sprites from rendering in front of closer walls',
+      'To calculate sprite animations'
+    ],
+    correctIndex: 2,
+    explanation: 'The z-buffer stores the distance to the wall for each screen column. When rendering sprites, we check if the sprite distance is less than the z-buffer value - if not, the sprite is behind a wall and shouldn\'t be drawn at that column.'
+  }
+];
+---
+
+<ModuleLayout 
+  title="Raycasting & Pseudo-3D"
+  moduleNumber="12"
+  projectName="Wolfenstein Renderer"
+  prevModule={{ href: '/modules/11-procedural/', title: 'Procedural Generation' }}
+>
+  <!-- Lesson 1: Raycasting Basics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. Raycasting Basics</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Raycasting</strong> is the technique that powered games like Wolfenstein 3D,
+      creating the illusion of 3D from a 2D map. It's NOT true 3D — it's a clever trick that renders
+      the world one vertical column at a time.
+    </p>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          What is a Ray?
+        </h3>
+        <p class="text-sm text-text-secondary">A line starting from the player's position, extending infinitely in a direction until it hits something.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          The Illusion
+        </h3>
+        <p class="text-sm text-text-secondary">Cast hundreds of rays across your FOV. Each ray determines one vertical column of pixels on screen.</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeRayBasics} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Try adjusting the ray angle to see how a single ray finds walls in the map:
+    </p>
+
+    <SingleRayDemo client:visible />
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#6c5ce7]">Key Insight:</strong> Each ray returns the distance to the nearest wall.
+        Closer walls are drawn taller, further walls are drawn shorter. That's the entire 3D illusion!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: DDA Algorithm -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. DDA Algorithm</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">DDA (Digital Differential Analyzer)</strong> is the algorithm that efficiently
+      finds where a ray hits a wall. Instead of checking every point, it cleverly jumps from grid cell to grid cell.
+    </p>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Calculates distance to next X and Y cell boundaries</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Steps to whichever boundary is closer</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Repeats until hitting a wall or map boundary</span>
+      </li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeDDA} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Watch the DDA algorithm step through cells one at a time:
+    </p>
+
+    <DDADemo client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+        <span><strong class="text-[#00b894]">Performance:</strong> DDA is O(n) where n is the number of cells crossed.
+        For typical game maps, this is just a handful of steps per ray!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Wall Distance Calculation -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. Wall Distance Calculation</h2>
+    
+    <p class="text-text-secondary mb-4">
+      The <strong class="text-white">distance calculation</strong> is where many beginners make a critical mistake.
+      Using regular (Euclidean) distance causes a fisheye distortion. We need <strong class="text-white">perpendicular distance</strong> instead.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeWallDistance} /></pre>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#e17055]">
+        <h3 class="font-bold text-white mb-2">Euclidean Distance</h3>
+        <p class="text-sm text-text-secondary">Straight-line distance from player to hit point. Causes fisheye because edge rays travel further.</p>
+        <code class="text-xs text-[#e17055]">√((x₂-x₁)² + (y₂-y₁)²)</code>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2">Perpendicular Distance</h3>
+        <p class="text-sm text-text-secondary">Distance to the camera plane. All rays hitting the same wall return similar values.</p>
+        <code class="text-xs text-[#00b894]">(mapX - player.x) / rayDirX</code>
+      </div>
+    </div>
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#fdcb6e]">Remember:</strong> The wall height formula is <code>lineHeight = screenHeight / distance</code>.
+        Using the wrong distance makes walls the wrong height!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: Fisheye Correction -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Fisheye Correction</h2>
+    
+    <p class="text-text-secondary mb-4">
+      The <strong class="text-white">fisheye effect</strong> makes walls appear curved instead of flat.
+      It happens because rays at the edge of your field of view travel further to hit the same wall.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeFisheye} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Toggle the correction on and off to see the dramatic difference:
+    </p>
+
+    <FisheyeDemo client:visible />
+
+    <div class="mt-6 bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4">
+      <h4 class="font-bold text-white mb-2 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        The Math Behind It
+      </h4>
+      <p class="text-sm text-text-secondary">
+        For a ray at angle θ from center, the correction factor is <code class="text-accent">cos(θ)</code>.
+        Center rays (θ=0) have cos(0)=1 (no change). Edge rays have cos reduced, shortening the effective distance.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 5: Textured Walls -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Textured Walls</h2>
+    
+    <p class="text-text-secondary mb-4">
+      To render <strong class="text-white">textured walls</strong>, we need to know exactly where on the wall
+      the ray hit. This position (called <code class="text-accent">wallX</code>) maps to a column in our texture.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeTextures} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      See how wallX determines which texture column to sample:
+    </p>
+
+    <TextureMappingDemo client:visible />
+
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h4 class="font-bold text-white mb-2">Texture X Coordinate</h4>
+        <p class="text-sm text-text-secondary">
+          <code>wallX</code> is the fractional part (0.0-1.0) of where the ray hit. Multiply by texture width to get pixel column.
+        </p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h4 class="font-bold text-white mb-2">Texture Y Coordinate</h4>
+        <p class="text-sm text-text-secondary">
+          Map screen Y to texture Y based on wall height. Taller walls show more texture detail.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lesson 6: Floor and Ceiling -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">6. Floor and Ceiling</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Floor and ceiling casting</strong> works differently from walls.
+      For each pixel row below/above the wall, we calculate which world coordinate it represents.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeFloorCeiling} /></pre>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h4 class="font-bold text-white mb-2">Row Distance</h4>
+        <p class="text-sm text-text-secondary">Each horizontal row represents a different distance from the player.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h4 class="font-bold text-white mb-2">World Position</h4>
+        <p class="text-sm text-text-secondary">Calculate the world X,Y coordinate for that screen pixel.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#fdcb6e]">
+        <h4 class="font-bold text-white mb-2">Texture Lookup</h4>
+        <p class="text-sm text-text-secondary">Map world coordinates to texture coordinates with modulo.</p>
+      </div>
+    </div>
+
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#e17055] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>
+        <span><strong class="text-[#e17055]">Performance Note:</strong> Floor/ceiling casting is expensive — it runs for every pixel not covered by walls.
+        Many games use solid colors or gradients instead to improve performance.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 7: Sprites -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">7. Sprites</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Sprites</strong> are 2D images placed in 3D space — enemies, items, decorations.
+      They use <strong class="text-white">billboarding</strong> (always facing the camera) to appear 3D.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeSprites} /></pre>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h4 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Z-Buffer
+        </h4>
+        <p class="text-sm text-text-secondary">
+          Store wall distances for each column. Only draw sprite pixels that are closer than the wall.
+        </p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h4 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+          Sorting
+        </h4>
+        <p class="text-sm text-text-secondary">
+          Draw sprites far-to-near so closer ones overlap correctly (painter's algorithm).
+        </p>
+      </div>
+    </div>
+
+    <ul class="list-none space-y-2 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>Transform sprite world position to camera/screen space</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>Skip sprites behind the camera (transformY ≤ 0)</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>Scale sprite size based on distance (just like walls)</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Project: Wolfenstein Renderer -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Wolfenstein Renderer
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      A complete first-person raycasting engine! Explore the dungeon using WASD or arrow keys.
+    </p>
+
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">WASD / Arrow keys</strong> to move and rotate</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Textured walls</strong> with procedurally generated patterns</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Minimap</strong> showing player position and ray visualization</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Distance fog</strong> for depth perception</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Sprites</strong> rendered with z-buffer occlusion</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Adjustable FOV</strong> slider (30° to 120°)</span>
+      </li>
+    </ul>
+
+    <WolfensteinRenderer client:visible />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Sliding Doors:</strong> Implement doors that slide open when the player approaches
+      </li>
+      <li>
+        <strong class="text-white">Push Walls:</strong> Add secret walls that can be pushed to reveal hidden areas
+      </li>
+      <li>
+        <strong class="text-white">Enemy AI:</strong> Make enemies chase the player using pathfinding from Module 7
+      </li>
+      <li>
+        <strong class="text-white">Weapons:</strong> Add a weapon sprite at the bottom of the screen with shooting animation
+      </li>
+      <li>
+        <strong class="text-white">Multiple Heights:</strong> Implement thin walls or platforms at different heights
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formula Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+      Quick Reference
+    </h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">Ray Direction</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-accent">dirX = cos(angle)</code></li>
+            <li><code class="text-accent">dirY = sin(angle)</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">DDA Step Distances</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>deltaDistX = |1 / rayDirX|</code></li>
+            <li><code>deltaDistY = |1 / rayDirY|</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Perpendicular Distance</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>side=0: (mapX - posX) / rayDirX</code></li>
+            <li><code>side=1: (mapY - posY) / rayDirY</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Wall Height</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>lineHeight = screenH / perpDist</code></li>
+            <li><code>drawStart = (screenH - lineH) / 2</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Fisheye Correction</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#00b894]">corrected = dist × cos(θ - playerθ)</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Texture Mapping</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>wallX = fractional hit position</code></li>
+            <li><code>texX = floor(wallX × texWidth)</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of raycasting and pseudo-3D rendering!
+    </p>
+    <Quiz 
+      client:visible 
+      title="Raycasting Quiz" 
+      questions={quizQuestions} 
+    />
+  </section>
+</ModuleLayout>

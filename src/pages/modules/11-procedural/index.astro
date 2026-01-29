@@ -1,0 +1,731 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import DungeonGenerator, { 
+  NoiseVisualizerDemo, 
+  BSPTreeDemo, 
+  CellularAutomataDemo,
+  CorridorComparisonDemo 
+} from '../../../components/modules/DungeonGenerator';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+
+// Code snippets
+const codeSeededRandom = `// Seeded random number generator
+class SeededRandom {
+    constructor(seed) {
+        this.seed = seed;
+    }
+    
+    next() {
+        // Linear Congruential Generator
+        this.seed = (this.seed * 1664525 + 1013904223) % 4294967296;
+        return this.seed / 4294967296;
+    }
+    
+    range(min, max) {
+        return Math.floor(this.next() * (max - min + 1)) + min;
+    }
+}
+
+// Same seed = same dungeon every time!
+const rng = new SeededRandom(12345);
+console.log(rng.next()); // Always: 0.3886...
+console.log(rng.next()); // Always: 0.8429...`;
+
+const codePerlinNoise = `// Perlin noise with Fractional Brownian Motion (fBm)
+function fbm(x, y, octaves, lacunarity = 2, persistence = 0.5) {
+    let total = 0;
+    let frequency = 1;
+    let amplitude = 1;
+    let maxValue = 0;
+    
+    for (let i = 0; i < octaves; i++) {
+        total += perlin(x * frequency, y * frequency) * amplitude;
+        maxValue += amplitude;
+        
+        // Each octave: higher frequency, lower amplitude
+        amplitude *= persistence;  // 0.5 = half as strong
+        frequency *= lacunarity;   // 2 = double the detail
+    }
+    
+    return total / maxValue;  // Normalize to [-1, 1]
+}
+
+// Usage: generate terrain height
+const height = fbm(x * 0.01, y * 0.01, 4);`;
+
+const codeBSP = `// Binary Space Partitioning
+function splitBSP(node, depth = 0) {
+    if (depth >= MAX_DEPTH) return;
+    
+    // Decide split direction (try to keep regions square-ish)
+    const splitH = node.height > node.width;
+    
+    if (splitH) {
+        // Split horizontally
+        const splitY = random.range(MIN_SIZE, node.height - MIN_SIZE);
+        node.left  = { x: node.x, y: node.y, 
+                       width: node.width, height: splitY };
+        node.right = { x: node.x, y: node.y + splitY,
+                       width: node.width, height: node.height - splitY };
+    } else {
+        // Split vertically
+        const splitX = random.range(MIN_SIZE, node.width - MIN_SIZE);
+        node.left  = { x: node.x, y: node.y,
+                       width: splitX, height: node.height };
+        node.right = { x: node.x + splitX, y: node.y,
+                       width: node.width - splitX, height: node.height };
+    }
+    
+    // Recurse into children
+    splitBSP(node.left, depth + 1);
+    splitBSP(node.right, depth + 1);
+}
+
+// After splitting, place a room in each leaf node
+// Then connect siblings with corridors`;
+
+const codeCellular = `// Cellular Automata cave generation
+function generateCave(width, height, iterations) {
+    // Step 1: Random initial state
+    let grid = createGrid(width, height, () => Math.random() < 0.45);
+    
+    // Step 2: Apply rules repeatedly
+    for (let i = 0; i < iterations; i++) {
+        const newGrid = createGrid(width, height, false);
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const walls = countNeighborWalls(grid, x, y);
+                
+                // The "4-5 rule": 
+                // - Born if 5+ wall neighbors
+                // - Survive if 4+ wall neighbors
+                newGrid[y][x] = walls >= 5;
+            }
+        }
+        
+        grid = newGrid;
+    }
+    
+    return grid;
+}
+
+function countNeighborWalls(grid, x, y) {
+    let count = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            // Out of bounds counts as wall
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+                count++;
+            } else if (grid[ny][nx]) {
+                count++;
+            }
+        }
+    }
+    return count;
+}`;
+
+const codeCorridor = `// L-shaped corridor between two points
+function connectRooms(grid, room1, room2) {
+    const x1 = room1.centerX, y1 = room1.centerY;
+    const x2 = room2.centerX, y2 = room2.centerY;
+    
+    // Randomly choose: horizontal-first or vertical-first
+    if (random.next() < 0.5) {
+        // Horizontal, then vertical
+        carveHorizontal(grid, x1, x2, y1);
+        carveVertical(grid, y1, y2, x2);
+    } else {
+        // Vertical, then horizontal
+        carveVertical(grid, y1, y2, x1);
+        carveHorizontal(grid, x1, x2, y2);
+    }
+}
+
+function carveHorizontal(grid, x1, x2, y) {
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    for (let x = minX; x <= maxX; x++) {
+        grid[y][x] = FLOOR;
+    }
+}`;
+
+const codePlaceContent = `// Place content using weighted random
+function placeContent(grid, rooms, rng) {
+    const floorTiles = findAllFloors(grid);
+    rng.shuffle(floorTiles);
+    
+    // Place start in first room, exit in furthest room
+    const start = floorTiles.pop();
+    grid[start.y][start.x] = 'start';
+    
+    // Find tile furthest from start
+    let exit = floorTiles[0];
+    let maxDist = 0;
+    for (const tile of floorTiles.slice(0, 20)) {
+        const dist = manhattan(tile, start);
+        if (dist > maxDist) {
+            maxDist = dist;
+            exit = tile;
+        }
+    }
+    grid[exit.y][exit.x] = 'exit';
+    
+    // Place treasures (2-5% of remaining tiles)
+    const treasureCount = Math.floor(floorTiles.length * 0.03);
+    for (let i = 0; i < treasureCount; i++) {
+        const pos = floorTiles.pop();
+        grid[pos.y][pos.x] = 'treasure';
+    }
+    
+    // Place enemies (avoid spawn area)
+    // ...similar logic with distance check from start
+}`;
+
+const codeHybrid = `// Hybrid approach: BSP rooms + noise edges
+function generateHybridDungeon(width, height, rng) {
+    // Step 1: Create structured rooms with BSP
+    const { grid, rooms } = generateBSP(width, height, rng);
+    
+    // Step 2: Add organic edges with Perlin noise
+    const noise = new PerlinNoise(rng);
+    
+    for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+            if (grid[y][x] === 'wall') {
+                const n = noise.noise2D(x * 0.1, y * 0.1);
+                
+                // Only erode walls near floors
+                if (n > 0.4 && hasAdjacentFloor(grid, x, y)) {
+                    grid[y][x] = 'floor';
+                }
+            }
+        }
+    }
+    
+    // Step 3: Optional - run cellular automata smoothing
+    // smoothCaveEdges(grid, 1);
+    
+    return { grid, rooms };
+}
+
+// Result: Structured layout with organic, cave-like edges`;
+
+// Quiz questions
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'Why use a seeded random number generator for procedural generation?',
+    options: [
+      'It generates truly random numbers',
+      'It allows recreating the same output from the same seed',
+      'It\'s faster than Math.random()',
+      'It produces better-looking results'
+    ],
+    correctIndex: 1,
+    explanation: 'Seeded RNGs are deterministic - the same seed always produces the same sequence of "random" numbers. This lets players share seeds to play the same dungeon, and helps with debugging and testing.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In Perlin noise, what does increasing the number of octaves do?',
+    options: [
+      'Makes the noise more uniform',
+      'Adds finer detail at higher frequencies',
+      'Decreases the amplitude of variations',
+      'Speeds up the generation process'
+    ],
+    correctIndex: 1,
+    explanation: 'Each octave adds noise at a higher frequency (more detail) but lower amplitude (less impact). This creates natural-looking complexity, like how terrain has both large mountains and small rocks.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is the main advantage of BSP (Binary Space Partitioning) for dungeon generation?',
+    options: [
+      'Creates the most realistic caves',
+      'Guarantees rooms won\'t overlap',
+      'Uses the least memory',
+      'Produces the most random layouts'
+    ],
+    correctIndex: 1,
+    explanation: 'BSP recursively divides space into non-overlapping regions, then places one room in each region. This guarantees rooms never overlap - a problem that plagues naive random placement algorithms.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In cellular automata cave generation, the "4-5 rule" means:',
+    options: [
+      'Caves are generated in 4-5 seconds',
+      'A cell becomes wall if 5+ neighbors are walls, survives if 4+ are walls',
+      'The grid is 4x5 cells',
+      'Iterations run 4-5 times'
+    ],
+    correctIndex: 1,
+    explanation: 'The 4-5 rule (B5678/S45678) is a common cellular automata rule for caves: a floor becomes wall if surrounded by 5+ walls (birth), and a wall stays wall if it has 4+ wall neighbors (survival).'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the seeded random range function:',
+    codeTemplate: 'range(min, max) {\n    return Math.___(this.next() * (max - min + 1)) + min;\n}',
+    answers: ['floor'],
+    explanation: 'Math.floor() converts the continuous random value [0, 1) into a discrete integer in the range [min, max]. The +1 ensures max is included in possible outputs.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Why connect rooms using L-shaped corridors instead of straight lines?',
+    options: [
+      'L-shapes use less memory',
+      'Straight corridors are harder to implement',
+      'L-shapes naturally align with grid directions and avoid diagonal movement',
+      'Straight corridors create more interesting layouts'
+    ],
+    correctIndex: 2,
+    explanation: 'L-shaped corridors (horizontal then vertical, or vice versa) follow grid axes, making them easy to implement and navigate. Straight diagonal corridors would require awkward tile patterns and diagonal movement support.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'When placing the exit in a dungeon, what\'s a good heuristic?',
+    options: [
+      'Random location',
+      'Center of the map',
+      'Maximize distance from the start',
+      'In the smallest room'
+    ],
+    correctIndex: 2,
+    explanation: 'Placing the exit far from the start ensures players must explore the dungeon to find it. This is typically done using Manhattan or Euclidean distance from the spawn point.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What makes a "hybrid" procedural generation approach effective?',
+    options: [
+      'It\'s always faster than single methods',
+      'Combines structure (BSP) with organic detail (noise/cellular)',
+      'It uses multiple random seeds',
+      'It generates smaller dungeons'
+    ],
+    correctIndex: 1,
+    explanation: 'Hybrid approaches get the best of both worlds: BSP provides reliable room layouts and connectivity, while noise or cellular automata add organic, natural-looking variation to walls and edges.'
+  }
+];
+---
+
+<ModuleLayout 
+  title="Procedural Generation"
+  moduleNumber="11"
+  projectName="Dungeon Generator"
+  prevModule={{ href: '/modules/10-particles/', title: 'Particle Systems' }}
+  nextModule={{ href: '/modules/12-raycasting/', title: 'Raycasting & Pseudo-3D' }}
+>
+  <!-- Lesson 1: Randomness & Seeds -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. Randomness & Seeds</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Procedural generation</strong> creates content algorithmically instead of by hand. 
+      The key insight: use <strong class="text-white">deterministic randomness</strong> - randomness that can be reproduced.
+    </p>
+    
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-6 mb-6">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 4v1"/><path d="M12 19v1"/><path d="m4.93 4.93.7.7"/><path d="m18.36 18.36.7.7"/><path d="M4 12h1"/><path d="M19 12h1"/><path d="m4.93 19.07.7-.7"/><path d="m18.36 5.64.7-.7"/></svg>
+        Why Seeded Random?
+      </h3>
+      <ul class="text-sm text-text-secondary space-y-2">
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><strong class="text-white">Reproducible:</strong> Same seed = same dungeon. Share seeds with friends!</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><strong class="text-white">Debuggable:</strong> Found a broken dungeon? The seed lets you recreate it.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><strong class="text-white">Saves space:</strong> Store a tiny seed instead of the whole dungeon.</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeSeededRandom} /></pre>
+    </div>
+
+    <p class="text-text-secondary">
+      Games like <em>Minecraft</em>, <em>No Man's Sky</em>, and <em>Spelunky</em> all use seeded generation. 
+      The seed is the DNA of your world.
+    </p>
+  </section>
+
+  <!-- Lesson 2: Perlin/Simplex Noise -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Perlin & Simplex Noise</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Pure random values create chaotic patterns. <strong class="text-white">Perlin noise</strong> generates 
+      <em>smooth</em> randomness - perfect for natural-looking terrain, clouds, and caves.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-[#e17055] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg>
+          White Noise
+        </h3>
+        <p class="text-sm text-text-secondary">Random values with no correlation. Looks like TV static. Useless for natural patterns.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-[#00b894] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          Perlin Noise
+        </h3>
+        <p class="text-sm text-text-secondary">Smooth gradients between values. Creates hills, waves, and organic textures.</p>
+      </div>
+    </div>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Octaves & fBm</h3>
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Fractional Brownian Motion (fBm)</strong> layers multiple octaves of noise 
+      at different frequencies and amplitudes:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codePerlinNoise} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Experiment with frequency and octaves to see how they affect the output:
+    </p>
+
+    <NoiseVisualizerDemo client:visible />
+  </section>
+
+  <!-- Lesson 3: BSP (Binary Space Partitioning) -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. BSP: Binary Space Partitioning</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">BSP</strong> is a classic technique for room-based dungeons. 
+      It recursively splits the space into smaller regions, guaranteeing rooms never overlap.
+    </p>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-6 mb-6">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+        How BSP Works
+      </h3>
+      <ol class="text-sm text-text-secondary space-y-2 list-decimal list-inside">
+        <li>Start with the entire dungeon as one region</li>
+        <li>Split it randomly (horizontal or vertical) into two children</li>
+        <li>Recursively split each child until regions are small enough</li>
+        <li>Place one room inside each leaf node</li>
+        <li>Connect sibling rooms with corridors</li>
+      </ol>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeBSP} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Watch the BSP tree build step by step:
+    </p>
+
+    <BSPTreeDemo client:visible />
+  </section>
+
+  <!-- Lesson 4: Cellular Automata -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Cellular Automata: Cave Generation</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Cellular automata</strong> applies simple rules repeatedly to create complex patterns. 
+      It's perfect for organic cave systems.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-2">1. Initialize</h3>
+        <p class="text-sm text-text-secondary">Fill grid randomly (~45% walls)</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#fdcb6e]">
+        <h3 class="font-bold text-white mb-2">2. Apply Rules</h3>
+        <p class="text-sm text-text-secondary">Count neighbors, apply birth/death rules</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2">3. Iterate</h3>
+        <p class="text-sm text-text-secondary">Repeat 4-5 times until stable</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeCellular} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Try different rules! The classic cave rule is B5678/S45678 (birth if 5+ walls, survive if 4+):
+    </p>
+
+    <CellularAutomataDemo client:visible />
+  </section>
+
+  <!-- Lesson 5: Connecting Rooms -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Connecting Rooms: Corridors</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Rooms need hallways! The most common approach is <strong class="text-white">L-shaped corridors</strong> 
+      that connect room centers via horizontal and vertical segments.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeCorridor} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Compare different corridor algorithms:
+    </p>
+
+    <CorridorComparisonDemo client:visible />
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#fdcb6e]">Pro Tip:</strong> For BSP dungeons, connect sibling nodes in the tree. 
+        This guarantees all rooms are reachable without creating redundant paths.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 6: Placing Content -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">6. Placing Content</h2>
+    
+    <p class="text-text-secondary mb-4">
+      An empty dungeon is boring! We need to place <strong class="text-white">start points</strong>, 
+      <strong class="text-white">exits</strong>, <strong class="text-white">treasures</strong>, and 
+      <strong class="text-white">enemies</strong>.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Start & Exit
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Place start in random room</li>
+          <li>• Place exit in <em>furthest</em> room</li>
+          <li>• Ensures exploration is required</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>
+          Treasures
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Place in dead ends (reward exploration)</li>
+          <li>• Distribute across rooms</li>
+          <li>• Scale quantity with dungeon size</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.85"/></svg>
+          Enemies
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Keep away from start (safe zone)</li>
+          <li>• Guard treasures and exits</li>
+          <li>• Scale difficulty with distance</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>
+          Doors
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Place at corridor-room transitions</li>
+          <li>• Detect 1-tile-wide chokepoints</li>
+          <li>• Can block line-of-sight</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codePlaceContent} /></pre>
+    </div>
+  </section>
+
+  <!-- Lesson 7: Combining Techniques -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">7. Hybrid Approaches</h2>
+    
+    <p class="text-text-secondary mb-4">
+      The best dungeons combine multiple techniques. Use <strong class="text-white">BSP for structure</strong> 
+      and <strong class="text-white">noise/cellular for organic detail</strong>.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeHybrid} /></pre>
+    </div>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-6 mb-6">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        Popular Combinations
+      </h3>
+      <ul class="text-sm text-text-secondary space-y-2">
+        <li class="flex items-start gap-2">
+          <span class="text-[#6c5ce7] font-mono">BSP + Noise:</span>
+          <span>Structured rooms with organic wall edges</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[#6c5ce7] font-mono">BSP + Cellular:</span>
+          <span>Room-based layout with cave-like interiors</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[#6c5ce7] font-mono">Cellular + Flood Fill:</span>
+          <span>Natural caves with guaranteed connectivity</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[#6c5ce7] font-mono">Drunkard + BSP:</span>
+          <span>Random cave layout with some defined rooms</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Project: Dungeon Generator -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Dungeon Generator
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Now put it all together! Generate dungeons with different algorithms, control parameters, 
+      and watch the generation process step by step.
+    </p>
+
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">4 algorithms:</strong> BSP, Cellular Automata, Drunkard's Walk, Hybrid</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Seeded generation:</strong> Same seed = same dungeon</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Step-through mode:</strong> Watch generation unfold</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Export:</strong> Download as JSON or PNG</span>
+      </li>
+    </ul>
+
+    <DungeonGenerator client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of procedural generation techniques!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="Procedural Generation Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="11-procedural" 
+      moduleName="Procedural Generation"
+    />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Multi-level Dungeons:</strong> Generate connected floors with stairs
+      </li>
+      <li>
+        <strong class="text-white">Themed Rooms:</strong> Designate rooms as "treasure vault", "armory", "library" with appropriate content
+      </li>
+      <li>
+        <strong class="text-white">Secret Areas:</strong> Add hidden rooms only accessible through fake walls
+      </li>
+      <li>
+        <strong class="text-white">Biome Blending:</strong> Use noise to blend between different dungeon themes (cave, crypt, sewer)
+      </li>
+      <li>
+        <strong class="text-white">Graph-based Generation:</strong> Define room relationships first, then lay them out spatially
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formula Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+      Quick Reference
+    </h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">Seeded Random</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#6c5ce7]">seed' = (seed × a + c) mod m</code></li>
+            <li>LCG with a=1664525, c=1013904223, m=2³²</li>
+            <li>Same seed → same sequence</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Perlin Noise fBm</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#6c5ce7]">Σ noise(f^i × x) × p^i</code></li>
+            <li>lacunarity (f) = 2, persistence (p) = 0.5</li>
+            <li>4-6 octaves for terrain</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Cellular Automata</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#6c5ce7]">B5678/S45678</code> — caves</li>
+            <li><code class="text-[#6c5ce7]">B3/S23</code> — Game of Life</li>
+            <li>4-5 iterations typical</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">BSP Parameters</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>Min room size: 4-6 tiles</li>
+            <li>Max depth: 4-6 levels</li>
+            <li>Split ratio: 0.3-0.7</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</ModuleLayout>
