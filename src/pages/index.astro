@@ -119,6 +119,24 @@ const modules = [
     href: '/modules/13-3d-intro/',
     ready: true,
     bonus: true
+  },
+  {
+    number: '14',
+    title: '3D Geometry & Meshes',
+    project: 'Mesh Editor',
+    topics: 'Vertices, Normals, UVs, Procedural',
+    difficulty: 'hard',
+    href: '/modules/14-geometry/',
+    ready: true
+  },
+  {
+    number: '16',
+    title: 'Materials & Textures',
+    project: 'PBR Material Editor',
+    topics: 'UV Mapping, Normal Maps, PBR',
+    difficulty: 'hard',
+    href: '/modules/16-materials/',
+    ready: true
   }
 ];
 
@@ -222,7 +240,7 @@ const difficultyDotColors = {
       </div>
       
       <p class="text-text-secondary" id="progress-text">
-        0 / 13 modules completed
+        0 / 15 modules completed
       </p>
     </div>
   </section>
@@ -238,7 +256,7 @@ const difficultyDotColors = {
   function updateProgressUI() {
     const progress = getProgress();
     const completed = progress.completed.length;
-    const total = 13;
+    const total = 15;
     const percentage = (completed / total) * 100;
 
     const bar = document.getElementById('progress-bar');

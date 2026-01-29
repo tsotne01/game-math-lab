@@ -1,0 +1,763 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import { MaterialEditor, UVMappingVisualizer, NormalMapDemo, PBRMaterialSphere, MetalnessRoughnessMatrix, MaterialComparison } from '../../../components/modules/MaterialEditor';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 16
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'What does UV mapping define for a 3D model?',
+    options: [
+      'The model\'s position in world space',
+      'How 2D textures wrap onto the 3D surface',
+      'The lighting direction for the model',
+      'The polygon count of the mesh'
+    ],
+    correctIndex: 1,
+    explanation: 'UV mapping defines the correspondence between 2D texture coordinates (U, V) and points on the 3D surface. U typically maps to width, V to height of the texture.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the purpose of mipmapping in texture filtering?',
+    options: [
+      'To increase texture resolution',
+      'To add normal details to surfaces',
+      'To reduce aliasing and improve performance for distant objects',
+      'To convert textures to grayscale'
+    ],
+    correctIndex: 2,
+    explanation: 'Mipmaps are pre-computed, progressively smaller versions of a texture. The GPU selects the appropriate level based on distance, reducing aliasing artifacts and improving cache performance.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What information does a normal map encode in its RGB channels?',
+    options: [
+      'Red=Diffuse, Green=Specular, Blue=Ambient',
+      'Red=X direction, Green=Y direction, Blue=Z direction of surface normals',
+      'Red=Roughness, Green=Metalness, Blue=Ambient Occlusion',
+      'Red=Height, Green=Width, Blue=Depth'
+    ],
+    correctIndex: 1,
+    explanation: 'Normal maps store surface direction (normals) as colors: R=X, G=Y, B=Z. The neutral purple/blue color (128, 128, 255) represents a normal pointing straight up from the surface.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In PBR materials, what does a metalness value of 1.0 indicate?',
+    options: [
+      'The surface is completely transparent',
+      'The surface is a pure conductor (metal) that reflects environment color',
+      'The surface is extremely rough',
+      'The surface emits light'
+    ],
+    correctIndex: 1,
+    explanation: 'Metalness=1 indicates a pure metal (conductor). Metals reflect the environment color and have colored specular reflections. Metalness=0 is for dielectrics (plastic, wood) which retain their albedo color.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is "energy conservation" in the context of PBR rendering?',
+    options: [
+      'Using less GPU power for rendering',
+      'A material cannot reflect more light than it receives',
+      'Reducing the polygon count',
+      'Compressing texture file sizes'
+    ],
+    correctIndex: 1,
+    explanation: 'Energy conservation means surfaces cannot output more light than they receive. As roughness increases (more diffuse reflection), specular reflection decreases proportionally. This makes materials look physically plausible.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What type of image format is typically used for HDR environment maps?',
+    options: [
+      'JPEG',
+      'PNG',
+      'EXR or HDR',
+      'GIF'
+    ],
+    correctIndex: 2,
+    explanation: 'HDR (High Dynamic Range) environment maps use formats like EXR or HDR that can store values beyond the 0-255 range. This allows for realistic bright light sources and accurate reflections.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the PBR material setup in Three.js:',
+    codeTemplate: `const material = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  metalness: 0.8,
+  roughness: 0.2,
+  ___: normalTexture  // Add surface detail
+});`,
+    answers: ['normalMap'],
+    explanation: 'The normalMap property in Three.js MeshStandardMaterial applies a normal map texture to add surface detail without additional geometry.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does an Ambient Occlusion (AO) map represent?',
+    options: [
+      'Which areas of the surface are metallic',
+      'How rough different areas of the surface are',
+      'Where ambient light is blocked by nearby geometry',
+      'The base color of the material'
+    ],
+    correctIndex: 2,
+    explanation: 'AO maps store pre-computed shadows from ambient light being blocked by nearby surfaces (like corners and crevices). White = fully lit, black = fully occluded. This adds depth and realism.'
+  }
+];
+
+// Code snippets
+const codeTextureLoading = `// Loading textures in Three.js
+const textureLoader = new THREE.TextureLoader();
+
+// Load a simple diffuse/albedo texture
+const diffuseMap = textureLoader.load('textures/brick_diffuse.jpg');
+
+// Configure texture wrapping and filtering
+diffuseMap.wrapS = THREE.RepeatWrapping;
+diffuseMap.wrapT = THREE.RepeatWrapping;
+diffuseMap.repeat.set(2, 2);  // Tile the texture 2x2
+
+// Texture filtering modes
+diffuseMap.minFilter = THREE.LinearMipmapLinearFilter;  // For distant
+diffuseMap.magFilter = THREE.LinearFilter;              // For close-up
+
+// Apply to material
+const material = new THREE.MeshStandardMaterial({
+    map: diffuseMap
+});`;
+
+const codeTextureFiltering = `// Texture filtering comparison
+
+// NEAREST - Pixelated, retro look (Minecraft style)
+texture.minFilter = THREE.NearestFilter;
+texture.magFilter = THREE.NearestFilter;
+
+// LINEAR - Smooth, blurred at close range
+texture.minFilter = THREE.LinearFilter;
+texture.magFilter = THREE.LinearFilter;
+
+// MIPMAPS - Best for 3D (smooth at distance, sharp up close)
+texture.minFilter = THREE.LinearMipmapLinearFilter;  // Trilinear
+texture.magFilter = THREE.LinearFilter;
+texture.generateMipmaps = true;
+
+// Anisotropic filtering - better quality at angles
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+texture.anisotropy = maxAniso;  // Usually 16`;
+
+const codeNormalMap = `// Normal maps fake surface detail without extra geometry
+
+const normalMap = textureLoader.load('textures/brick_normal.jpg');
+
+const material = new THREE.MeshStandardMaterial({
+    color: 0x888888,
+    normalMap: normalMap,
+    normalScale: new THREE.Vector2(1.0, 1.0)  // Strength
+});
+
+// How normal maps work:
+// - RGB channels encode surface direction (X, Y, Z)
+// - Neutral/flat = (128, 128, 255) = purple-blue color
+// - The shader uses these to perturb lighting calculations
+// - Result: Flat geometry looks bumpy!
+
+// Tangent space vs Object space:
+// - Tangent space (most common): Relative to surface
+// - Object space: Absolute, doesn't work with deformation`;
+
+const codePBRMaterial = `// PBR (Physically Based Rendering) Material Setup
+
+const material = new THREE.MeshStandardMaterial({
+    // Base color (albedo) - the diffuse color
+    color: 0xb08d57,          // or use a map: map: diffuseTexture
+    
+    // Metalness: 0 = dielectric (plastic), 1 = metal
+    metalness: 0.8,           // or use: metalnessMap
+    
+    // Roughness: 0 = mirror, 1 = completely diffuse
+    roughness: 0.2,           // or use: roughnessMap
+    
+    // Normal map for surface detail
+    normalMap: normalTexture,
+    normalScale: new THREE.Vector2(1, 1),
+    
+    // Ambient Occlusion - soft shadows in crevices
+    aoMap: aoTexture,
+    aoMapIntensity: 1.0,
+    
+    // Environment map intensity
+    envMapIntensity: 1.0
+});
+
+// Key PBR principle: ENERGY CONSERVATION
+// A surface can't reflect more light than it receives
+// As roughness increases, specular decreases proportionally`;
+
+const codeEnvironmentMap = `// Environment maps for reflections and lighting
+
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+
+// Load HDR environment map
+const hdrLoader = new RGBELoader();
+hdrLoader.load('environment.hdr', (texture) => {
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    
+    // Use as scene background
+    scene.background = texture;
+    
+    // Use for reflections on all PBR materials
+    scene.environment = texture;
+});
+
+// Cube map alternative (6 images)
+const cubeLoader = new THREE.CubeTextureLoader();
+const cubeMap = cubeLoader.load([
+    'px.jpg', 'nx.jpg',  // Positive/Negative X
+    'py.jpg', 'ny.jpg',  // Positive/Negative Y
+    'pz.jpg', 'nz.jpg'   // Positive/Negative Z
+]);
+
+scene.environment = cubeMap;`;
+
+const codeAdvancedMaps = `// Advanced texture maps for realistic materials
+
+const material = new THREE.MeshStandardMaterial({
+    // Displacement map - actually moves vertices
+    displacementMap: heightTexture,
+    displacementScale: 0.1,        // How much to displace
+    displacementBias: 0,           // Offset
+    
+    // Emissive - self-illumination (glowing parts)
+    emissive: 0xff0000,            // Glow color
+    emissiveMap: emissiveTexture,  // Where it glows
+    emissiveIntensity: 1.0,
+    
+    // Alpha/Opacity maps
+    alphaMap: alphaTexture,
+    transparent: true,
+    
+    // For displacement to work well, need high poly count:
+    // const geometry = new THREE.PlaneGeometry(10, 10, 100, 100);
+});
+
+// Note: Displacement is expensive! 
+// Consider parallax occlusion mapping for better performance`;
+
+const codeMaterialBlending = `// Multi-material and texture blending techniques
+
+// Method 1: Multiple materials on one mesh (by face groups)
+const materials = [
+    new THREE.MeshStandardMaterial({ color: 0xff0000 }),  // Group 0
+    new THREE.MeshStandardMaterial({ color: 0x00ff00 }),  // Group 1
+    new THREE.MeshStandardMaterial({ color: 0x0000ff })   // Group 2
+];
+const mesh = new THREE.Mesh(geometry, materials);
+
+// Method 2: Texture atlas (combine textures into one image)
+// UV coordinates select which part of the atlas to use
+// Good for: Minecraft-style blocks, UI elements, sprites
+
+// Method 3: Shader-based blending (advanced)
+const blendShader = {
+    uniforms: {
+        texture1: { value: grassTexture },
+        texture2: { value: dirtTexture },
+        blendMap: { value: splatTexture }  // R channel = blend factor
+    },
+    fragmentShader: \`
+        vec4 tex1 = texture2D(texture1, vUv);
+        vec4 tex2 = texture2D(texture2, vUv);
+        float blend = texture2D(blendMap, vUv).r;
+        gl_FragColor = mix(tex1, tex2, blend);
+    \`
+};`;
+---
+
+<ModuleLayout 
+  title="Materials & Textures"
+  moduleNumber="16"
+  projectName="PBR Material Editor"
+  prevModule={{ href: '/modules/11-procedural/', title: 'Procedural Generation' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-[#9b59b6]/20 to-[#3498db]/20 border border-[#9b59b6] rounded-xl p-6 mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#9b59b6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="13.5" cy="6.5" r=".5"/>
+          <circle cx="17.5" cy="10.5" r=".5"/>
+          <circle cx="8.5" cy="7.5" r=".5"/>
+          <circle cx="6.5" cy="12.5" r=".5"/>
+          <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/>
+        </svg>
+        <span class="text-[#9b59b6] font-bold uppercase tracking-wider text-sm">Module 16</span>
+      </div>
+      <p class="text-text-secondary">
+        Materials and textures bring 3D models to life! In this module, you'll learn how textures wrap onto geometry, 
+        how normal maps fake surface detail, and how PBR (Physically Based Rendering) creates realistic materials 
+        that respond correctly to light.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: Texture Basics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+        <circle cx="9" cy="9" r="2"/>
+        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+      </svg>
+      1. Texture Basics
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      A <strong class="text-white">texture</strong> is a 2D image mapped onto a 3D surface. The mapping between 
+      3D vertices and 2D texture coordinates is called <strong class="text-white">UV mapping</strong>:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <span class="w-4 h-4 rounded bg-[#ff6b6b]"></span>
+        <strong class="text-[#ff6b6b]">U</strong> — Horizontal axis (0 to 1, left to right)
+      </li>
+      <li class="flex items-center gap-2">
+        <span class="w-4 h-4 rounded bg-[#51cf66]"></span>
+        <strong class="text-[#51cf66]">V</strong> — Vertical axis (0 to 1, bottom to top)
+      </li>
+    </ul>
+
+    <p class="text-text-secondary mb-6">
+      Each vertex in a 3D mesh stores UV coordinates that tell the GPU which part of the texture to sample. 
+      When you "unwrap" a 3D model, you're creating this UV mapping!
+    </p>
+
+    <CodeBlock client:load code={codeTextureLoading} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: UV Mapping Visualizer</h3>
+    <p class="text-text-secondary mb-4">
+      Paint on the 2D texture and watch it update on the 3D sphere in real-time. This demonstrates how 
+      UV coordinates map 2D to 3D!
+    </p>
+    <UVMappingVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 2: Texture Filtering -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.3-4.3"/>
+        <path d="M11 8v6"/>
+        <path d="M8 11h6"/>
+      </svg>
+      2. Texture Filtering
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      When a texture is displayed at a different size than its original resolution, the GPU must 
+      <strong class="text-white">filter</strong> (interpolate) between texels. There are several filtering modes:
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#ff6b6b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18"/></svg>
+          Nearest
+        </h4>
+        <p class="text-sm text-text-secondary">Picks the closest texel. Pixelated look, perfect for retro games like Minecraft.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#51cf66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/></svg>
+          Linear
+        </h4>
+        <p class="text-sm text-text-secondary">Blends nearby texels. Smooth but can be blurry up close.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#339af0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="m21 12-4 4-4-4"/><path d="M17 16V4"/></svg>
+          Mipmapped
+        </h4>
+        <p class="text-sm text-text-secondary">Pre-computed smaller versions. Best quality and performance for 3D!</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeTextureFiltering} language="javascript" />
+
+    <div class="mt-6 p-4 bg-[#ffd43b]/10 border border-[#ffd43b]/30 rounded-lg">
+      <h4 class="font-semibold text-[#ffd43b] mb-2 flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        Pro Tip: Mipmaps
+      </h4>
+      <p class="text-sm text-text-secondary">
+        Mipmaps are pre-scaled versions of your texture (256x256 → 128x128 → 64x64 → ... → 1x1). 
+        The GPU picks the right level based on distance, eliminating shimmering artifacts and 
+        improving cache efficiency. Always use them for 3D!
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Normal Maps -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+      3. Normal Maps
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Normal maps</strong> are one of the most powerful techniques in real-time graphics. 
+      They encode surface direction (normals) as colors, allowing flat geometry to appear detailed:
+    </p>
+
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6">
+      <p class="text-sm mb-2">Normal map RGB channels:</p>
+      <ul class="text-sm space-y-1">
+        <li><span class="text-[#ff6b6b] font-bold">R (Red)</span> = X direction (left/right tilt)</li>
+        <li><span class="text-[#51cf66] font-bold">G (Green)</span> = Y direction (up/down tilt)</li>
+        <li><span class="text-[#339af0] font-bold">B (Blue)</span> = Z direction (towards viewer)</li>
+      </ul>
+      <p class="text-xs text-text-secondary mt-2">
+        A neutral normal (pointing straight out) = <code class="bg-black/30 px-1 rounded">(128, 128, 255)</code> = purple/blue color
+      </p>
+    </div>
+
+    <CodeBlock client:load code={codeNormalMap} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Normal Map Effect Demo</h3>
+    <p class="text-text-secondary mb-4">
+      Watch how a completely flat plane appears to have bumpy surface detail when lit. 
+      Toggle the normal map on/off to see the difference!
+    </p>
+    <NormalMapDemo client:visible />
+  </section>
+
+  <!-- Lesson 4: PBR Fundamentals -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+        <path d="M2 12h20"/>
+      </svg>
+      4. PBR Fundamentals
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Physically Based Rendering (PBR)</strong> is the modern standard for realistic 
+      materials. It's based on real-world physics and uses two key parameters:
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-gradient-to-br from-[#ffd43b]/10 to-transparent p-4 rounded-lg border border-[#ffd43b]/30">
+        <h4 class="font-semibold text-[#ffd43b] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+          Metalness (0-1)
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li><strong class="text-white">0</strong> = Dielectric (plastic, wood, fabric)</li>
+          <li><strong class="text-white">1</strong> = Metal (gold, silver, copper)</li>
+          <li>Metals reflect environment color</li>
+          <li>Dielectrics retain base color</li>
+        </ul>
+      </div>
+      <div class="bg-gradient-to-br from-[#51cf66]/10 to-transparent p-4 rounded-lg border border-[#51cf66]/30">
+        <h4 class="font-semibold text-[#51cf66] mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/></svg>
+          Roughness (0-1)
+        </h4>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li><strong class="text-white">0</strong> = Mirror-like (perfect reflection)</li>
+          <li><strong class="text-white">1</strong> = Completely diffuse (chalk)</li>
+          <li>Affects how "spread out" reflections are</li>
+          <li>Higher = blurrier reflections</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-accent/30">
+      <h4 class="font-semibold text-accent mb-2">Energy Conservation</h4>
+      <p class="text-sm text-text-secondary">
+        A surface can never reflect more light than it receives. As roughness increases (more diffuse reflection), 
+        specular reflection must decrease. PBR materials handle this automatically, which is why they always 
+        look "right" under any lighting.
+      </p>
+    </div>
+
+    <CodeBlock client:load code={codePBRMaterial} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: PBR Material Ball</h3>
+    <PBRMaterialSphere client:visible />
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Metalness/Roughness Matrix</h3>
+    <p class="text-text-secondary mb-4">
+      This grid shows all combinations of metalness (horizontal) and roughness (vertical). Notice how 
+      the material appearance changes dramatically across the spectrum!
+    </p>
+    <MetalnessRoughnessMatrix client:visible />
+  </section>
+
+  <!-- Lesson 5: Environment Maps -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M2 12h20"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      5. Environment Maps
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Environment maps</strong> capture the surrounding scene as an image and are used for:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#51cf66] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Reflections</strong> — Shiny surfaces reflect the environment</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#51cf66] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Image-Based Lighting (IBL)</strong> — Environment provides diffuse lighting</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#51cf66] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Skyboxes</strong> — Scene background</span>
+      </li>
+    </ul>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2">Cube Maps</h4>
+        <p class="text-sm text-text-secondary">6 square images forming a cube (px, nx, py, ny, pz, nz). Traditional format, easy to understand.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2">Equirectangular (HDR)</h4>
+        <p class="text-sm text-text-secondary">Single panoramic image. Supports HDR for bright light sources. Modern preferred format.</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeEnvironmentMap} language="javascript" />
+  </section>
+
+  <!-- Lesson 6: Advanced Maps -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      6. Advanced Maps
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Beyond the basics, there are several specialized texture maps for even more realism:
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#a8e6cf]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+          Ambient Occlusion
+        </h4>
+        <p class="text-sm text-text-secondary">Pre-baked soft shadows in crevices. White = lit, black = shadowed.</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#ffeaa7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Displacement
+        </h4>
+        <p class="text-sm text-text-secondary">Actually moves vertices based on height. Expensive but real geometry!</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#ff7675]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Emissive
+        </h4>
+        <p class="text-sm text-text-secondary">Self-illuminating areas like LEDs, screens, or lava. Ignores lighting.</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeAdvancedMaps} language="javascript" />
+  </section>
+
+  <!-- Lesson 7: Material Blending -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2v4"/>
+        <path d="m6.8 14-3.5 2"/>
+        <path d="m20.7 16-3.5-2"/>
+        <path d="M6.8 10 3.3 8"/>
+        <path d="m20.7 8-3.5 2"/>
+        <path d="m9 22 3-8 3 8"/>
+        <path d="M8 6a6 6 0 0 1 12 0c0 4.97-6 8-6 8s-6-3.03-6-8Z"/>
+      </svg>
+      7. Material Blending
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Real-world objects often have multiple materials or blend between textures. Here are common techniques:
+    </p>
+
+    <div class="space-y-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2">Multi-Material Meshes</h4>
+        <p class="text-sm text-text-secondary">Assign different materials to different face groups. Used for objects with distinct parts (car body vs windows).</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2">Texture Atlases</h4>
+        <p class="text-sm text-text-secondary">Combine multiple textures into one image, use UV coordinates to select regions. Great for reducing draw calls!</p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg">
+        <h4 class="font-semibold text-white mb-2">Splat Maps / Blend Maps</h4>
+        <p class="text-sm text-text-secondary">Use a grayscale texture to blend between materials. Perfect for terrain (grass/dirt transitions).</p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeMaterialBlending} language="javascript" />
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Standard vs PBR Comparison</h3>
+    <p class="text-text-secondary mb-4">
+      Compare the old Phong lighting model with modern PBR. Notice how PBR materials respond to the 
+      environment while Phong only has a simple specular highlight.
+    </p>
+    <MaterialComparison client:visible />
+  </section>
+
+  <!-- Project: Material Editor -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/>
+        <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
+        <path d="M12 2v2"/>
+        <path d="M12 22v-2"/>
+        <path d="m17 20.66-1-1.73"/>
+        <path d="M11 10.27 7 3.34"/>
+        <path d="m20.66 17-1.73-1"/>
+        <path d="m3.34 7 1.73 1"/>
+        <path d="M14 12h8"/>
+        <path d="M2 12h2"/>
+        <path d="m20.66 7-1.73 1"/>
+        <path d="m3.34 17 1.73-1"/>
+        <path d="m17 3.34-1 1.73"/>
+        <path d="m11 13.73-4 6.93"/>
+      </svg>
+      Project: PBR Material Editor
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Now put it all together! This material editor lets you experiment with all the PBR parameters, 
+      upload custom textures, and preview materials in real-time with different environments.
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Real-time PBR material preview
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Multiple object shapes and environment maps
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Texture upload slots (diffuse, normal, roughness, metalness, AO)
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Material presets and export functionality
+      </li>
+    </ul>
+
+    <MaterialEditor client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>
+      </svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of materials and textures!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="Materials & Textures Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="16-materials" 
+      moduleName="Materials & Textures"
+    />
+  </section>
+
+  <!-- What's Next -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 17 5-5-5-5"/>
+        <path d="m13 17 5-5-5-5"/>
+      </svg>
+      What You've Learned
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Congratulations! You now understand how modern games create realistic materials:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">UV Mapping:</strong> How 2D textures wrap onto 3D geometry
+      </li>
+      <li>
+        <strong class="text-white">Texture Filtering:</strong> Mipmaps, nearest vs linear, anisotropic filtering
+      </li>
+      <li>
+        <strong class="text-white">Normal Maps:</strong> Fake surface detail without extra geometry
+      </li>
+      <li>
+        <strong class="text-white">PBR Materials:</strong> Metalness, roughness, energy conservation
+      </li>
+      <li>
+        <strong class="text-white">Environment Maps:</strong> HDR lighting and reflections
+      </li>
+      <li>
+        <strong class="text-white">Advanced Techniques:</strong> AO, displacement, emissive, material blending
+      </li>
+    </ol>
+
+    <div class="mt-8 p-6 bg-gradient-to-r from-[#9b59b6]/20 to-[#3498db]/20 border border-[#9b59b6] rounded-xl">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#9b59b6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+        </svg>
+        <span class="text-[#9b59b6] font-bold">Module Complete!</span>
+      </div>
+      <p class="text-text-secondary">
+        With these material skills, you can create any surface from polished chrome to weathered wood. 
+        Try experimenting with the material editor to create your own unique materials!
+      </p>
+    </div>
+  </section>
+</ModuleLayout>

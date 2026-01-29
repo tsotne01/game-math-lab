@@ -1,0 +1,715 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import MeshEditor, { VertexVisualizer, NormalVisualizer, UVMappingDemo, ProceduralShapeBuilder, MeshDeformationDemo } from '../../../components/modules/MeshEditor';
+import Quiz from '../../../components/lessons/Quiz';
+import MarkComplete from '../../../components/ui/MarkComplete';
+import CodeBlock from '../../../components/ui/CodeBlock';
+import type { QuizQuestion } from '../../../components/lessons/Quiz';
+
+// Quiz questions for Module 14
+const quizQuestions: QuizQuestion[] = [
+  {
+    type: 'multiple-choice',
+    question: 'Why does a cube mesh typically have 24 vertices instead of 8?',
+    options: [
+      'Because GPUs require more vertices',
+      'Because each face needs unique normals and UV coordinates',
+      'Because of a bug in mesh generation',
+      'Because cubes are actually made of triangles'
+    ],
+    correctIndex: 1,
+    explanation: 'Each face of a cube needs to point in a different direction (normal) and have its own texture mapping (UVs). Since vertices store this data, we need 4 vertices per face × 6 faces = 24 vertices.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the purpose of an index buffer in mesh data?',
+    options: [
+      'To store vertex colors',
+      'To define which vertices form each triangle, enabling vertex reuse',
+      'To speed up texture loading',
+      'To calculate lighting'
+    ],
+    correctIndex: 1,
+    explanation: 'Index buffers list which vertices make up each triangle. This allows multiple triangles to share the same vertex data, reducing memory usage and improving performance.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What does a surface normal represent?',
+    options: [
+      'The average position of vertices',
+      'The direction a surface is facing, used for lighting calculations',
+      'The color of a pixel',
+      'The speed of animation'
+    ],
+    correctIndex: 1,
+    explanation: 'Normals are unit vectors perpendicular to a surface. They determine how light bounces off the surface — a surface facing the light appears bright, while one facing away appears dark.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'UV coordinates range from 0 to 1. What happens if a UV value is 0.5?',
+    options: [
+      'The texture is invisible',
+      'It maps to the middle of the texture',
+      'The vertex is moved to the center',
+      'The mesh is deleted'
+    ],
+    correctIndex: 1,
+    explanation: 'UV coordinates of (0.5, 0.5) map to the exact center of the texture. (0,0) is typically the bottom-left corner and (1,1) is the top-right.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'What is the difference between face normals and vertex normals?',
+    options: [
+      'Face normals are faster to compute',
+      'Face normals give flat shading, vertex normals give smooth shading',
+      'Vertex normals cannot be used for lighting',
+      'There is no difference'
+    ],
+    correctIndex: 1,
+    explanation: 'Face normals are per-triangle (one normal for the whole face = flat shading). Vertex normals are per-vertex and get interpolated across the face, creating smooth lighting transitions.'
+  },
+  {
+    type: 'code-completion',
+    question: 'Complete the formula to calculate a face normal from two edges:',
+    codeTemplate: `function faceNormal(v0, v1, v2) {
+  const edge1 = subtract(v1, v0);
+  const edge2 = subtract(v2, v0);
+  return normalize(___(edge1, edge2));
+}`,
+    answers: ['cross', 'crossProduct', 'cross_product'],
+    explanation: 'The cross product of two edges gives a vector perpendicular to both — which is the face normal. We normalize it to get a unit vector for lighting calculations.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'When generating a sphere mesh, what happens as you increase the segment count?',
+    options: [
+      'The sphere gets bigger',
+      'The sphere becomes smoother but uses more vertices/triangles',
+      'The sphere changes color',
+      'The sphere becomes hollow'
+    ],
+    correctIndex: 1,
+    explanation: 'More segments means more triangles to approximate the curved surface. A sphere with 8 segments looks like a disco ball; one with 64 segments looks smooth. The trade-off is performance.'
+  },
+  {
+    type: 'multiple-choice',
+    question: 'In vertex animation/deformation, what is being modified each frame?',
+    options: [
+      'The texture coordinates',
+      'The vertex positions in the position buffer',
+      'The index buffer',
+      'The shader code'
+    ],
+    correctIndex: 1,
+    explanation: 'Vertex animation works by modifying the position attribute of each vertex every frame. This is how water ripples, cloth physics, and morphing effects are achieved.'
+  }
+];
+
+// Code snippets
+const codeVertexBasics = `// A mesh is defined by its vertices (points in 3D space)
+// Each vertex has a position, and often normal + UV data
+
+const cubeVertices = [
+  // Front face (z = 0.5)
+  { position: [-0.5, -0.5,  0.5], normal: [0, 0, 1], uv: [0, 0] },
+  { position: [ 0.5, -0.5,  0.5], normal: [0, 0, 1], uv: [1, 0] },
+  { position: [ 0.5,  0.5,  0.5], normal: [0, 0, 1], uv: [1, 1] },
+  { position: [-0.5,  0.5,  0.5], normal: [0, 0, 1], uv: [0, 1] },
+  // ... more vertices for other faces
+];
+
+// Position arrays are usually flattened for GPU:
+const positions = new Float32Array([
+  -0.5, -0.5, 0.5,  // vertex 0: x, y, z
+   0.5, -0.5, 0.5,  // vertex 1: x, y, z
+   0.5,  0.5, 0.5,  // vertex 2: x, y, z
+  // ...
+]);`;
+
+const codeTriangles = `// Meshes are made of triangles (the GPU's native shape)
+// A quad (4 vertices) needs 2 triangles:
+
+//  3---2      Triangle 1: vertices 0, 1, 2
+//  |\\  |      Triangle 2: vertices 0, 2, 3
+//  | \\ |
+//  0---1
+
+// Without index buffer (duplicated vertices):
+const trianglePositions = [
+  // Triangle 1
+  -0.5, -0.5, 0,  // v0
+   0.5, -0.5, 0,  // v1
+   0.5,  0.5, 0,  // v2
+  // Triangle 2
+  -0.5, -0.5, 0,  // v0 (duplicated!)
+   0.5,  0.5, 0,  // v2 (duplicated!)
+  -0.5,  0.5, 0,  // v3
+];
+
+// With index buffer (shared vertices):
+const positions = [
+  -0.5, -0.5, 0,  // v0
+   0.5, -0.5, 0,  // v1
+   0.5,  0.5, 0,  // v2
+  -0.5,  0.5, 0,  // v3
+];
+const indices = [
+  0, 1, 2,  // Triangle 1
+  0, 2, 3,  // Triangle 2 (reuses v0 and v2!)
+];`;
+
+const codeNormals = `// Normals define which direction a surface faces
+// They're essential for lighting calculations
+
+// Calculate face normal from 3 vertices (cross product)
+function calculateFaceNormal(v0, v1, v2) {
+  // Get two edges of the triangle
+  const edge1 = {
+    x: v1.x - v0.x,
+    y: v1.y - v0.y,
+    z: v1.z - v0.z
+  };
+  const edge2 = {
+    x: v2.x - v0.x,
+    y: v2.y - v0.y,
+    z: v2.z - v0.z
+  };
+  
+  // Cross product gives perpendicular vector
+  const normal = {
+    x: edge1.y * edge2.z - edge1.z * edge2.y,
+    y: edge1.z * edge2.x - edge1.x * edge2.z,
+    z: edge1.x * edge2.y - edge1.y * edge2.x
+  };
+  
+  // Normalize to unit length
+  const length = Math.sqrt(normal.x**2 + normal.y**2 + normal.z**2);
+  return {
+    x: normal.x / length,
+    y: normal.y / length,
+    z: normal.z / length
+  };
+}
+
+// Vertex normals: average of adjacent face normals
+// This creates smooth shading between triangles`;
+
+const codeUVCoordinates = `// UV coordinates map 2D textures to 3D surfaces
+// U = horizontal (0-1), V = vertical (0-1)
+
+//  Texture space:          3D cube face:
+//  (0,1)-----(1,1)         TL----TR
+//    |         |            |      |
+//    |  IMAGE  |    →→→     | FACE |
+//    |         |            |      |
+//  (0,0)-----(1,0)         BL----BR
+
+const faceVertices = [
+  { position: [-1, -1, 1], uv: [0, 0] },  // Bottom-left
+  { position: [ 1, -1, 1], uv: [1, 0] },  // Bottom-right
+  { position: [ 1,  1, 1], uv: [1, 1] },  // Top-right
+  { position: [-1,  1, 1], uv: [0, 1] },  // Top-left
+];
+
+// UV wrapping modes:
+// CLAMP: coordinates outside 0-1 stick to edge
+// REPEAT: texture tiles (1.5 wraps to 0.5)
+// MIRROR: texture mirrors at edges
+
+// Tiling example: uv = [2, 2] means texture repeats 2x2`;
+
+const codeIndexBuffer = `// Index buffers save memory by sharing vertices
+
+// A cube has 8 corners, but needs 24 vertices (why?)
+// Each face needs unique normals and UVs!
+
+// Without indices: 36 vertices (6 faces × 2 triangles × 3 vertices)
+// With indices: 24 vertices + 36 indices
+
+// Memory comparison (position only, 3 floats per vertex):
+// Without: 36 × 3 × 4 bytes = 432 bytes
+// With:    24 × 3 × 4 + 36 × 2 = 288 + 72 = 360 bytes
+// Savings: 17% smaller, and better GPU cache hits!
+
+function createIndexedQuad() {
+  return {
+    positions: new Float32Array([
+      -1, -1, 0,  // 0: bottom-left
+       1, -1, 0,  // 1: bottom-right
+       1,  1, 0,  // 2: top-right
+      -1,  1, 0,  // 3: top-left
+    ]),
+    indices: new Uint16Array([
+      0, 1, 2,  // first triangle
+      0, 2, 3,  // second triangle (shares 0 and 2)
+    ]),
+  };
+}`;
+
+const codeProceduralGeometry = `// Generate shapes mathematically instead of modeling
+
+// Sphere: points on surface using spherical coordinates
+function createSphere(radius, widthSeg, heightSeg) {
+  const positions = [];
+  
+  for (let y = 0; y <= heightSeg; y++) {
+    const v = y / heightSeg;
+    const phi = v * Math.PI;  // 0 to π (pole to pole)
+    
+    for (let x = 0; x <= widthSeg; x++) {
+      const u = x / widthSeg;
+      const theta = u * Math.PI * 2;  // 0 to 2π (around)
+      
+      positions.push(
+        radius * Math.sin(phi) * Math.cos(theta),  // x
+        radius * Math.cos(phi),                     // y
+        radius * Math.sin(phi) * Math.sin(theta)   // z
+      );
+    }
+  }
+  return positions;
+}
+
+// Torus: circle rotated around an axis
+function createTorus(radius, tube, radialSeg, tubularSeg) {
+  const positions = [];
+  
+  for (let j = 0; j <= radialSeg; j++) {
+    const v = (j / radialSeg) * Math.PI * 2;
+    
+    for (let i = 0; i <= tubularSeg; i++) {
+      const u = (i / tubularSeg) * Math.PI * 2;
+      
+      positions.push(
+        (radius + tube * Math.cos(v)) * Math.cos(u),
+        tube * Math.sin(v),
+        (radius + tube * Math.cos(v)) * Math.sin(u)
+      );
+    }
+  }
+  return positions;
+}`;
+
+const codeMeshManipulation = `// Modify vertex positions for effects and animation
+
+// Wave deformation (like water)
+function applyWave(positions, time, amplitude, frequency) {
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i];
+    const z = positions[i + 2];
+    
+    // Displacement based on position and time
+    positions[i + 1] += Math.sin(x * frequency + time) * amplitude;
+    positions[i + 1] += Math.sin(z * frequency + time * 1.3) * amplitude * 0.5;
+  }
+}
+
+// Twist deformation (rotate around Y axis based on height)
+function applyTwist(positions, angle) {
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i];
+    const y = positions[i + 1];
+    const z = positions[i + 2];
+    
+    const twist = y * angle;  // More twist at higher Y
+    const cos = Math.cos(twist);
+    const sin = Math.sin(twist);
+    
+    positions[i] = x * cos - z * sin;
+    positions[i + 2] = x * sin + z * cos;
+  }
+}
+
+// After modifying positions, recalculate normals!
+// geometry.computeVertexNormals();`;
+---
+
+<ModuleLayout 
+  title="3D Geometry & Meshes"
+  moduleNumber="14"
+  projectName="Mesh Editor"
+  prevModule={{ href: '/modules/13-3d-intro/', title: 'Intro to 3D Math' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl p-6 mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.29 7 8.71 5 8.71-5"/><path d="M12 22V12"/></svg>
+        <span class="text-accent font-bold uppercase tracking-wider text-sm">Module 14</span>
+      </div>
+      <p class="text-text-secondary">
+        Dive deep into the building blocks of 3D graphics! Learn how meshes are constructed from 
+        vertices, how triangles form surfaces, and how normals and UV coordinates enable realistic 
+        lighting and texturing. You'll build an interactive mesh editor to visualize these concepts.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 1: Vertices -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1"/></svg>
+      1. Vertices: Points in 3D Space
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Every 3D model is made of <strong class="text-white">vertices</strong> — points defined by X, Y, Z coordinates. 
+      But vertices store more than just position:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Position</strong> — Where the vertex is (x, y, z)</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Normal</strong> — Which direction the surface faces (for lighting)</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">UV Coordinates</strong> — Where to sample the texture (u, v)</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Color</strong> — Vertex colors (optional, for vertex-colored meshes)</span>
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeVertexBasics} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Vertex Visualizer</h3>
+    <p class="text-text-secondary mb-4">
+      See how vertices define a shape. Increase subdivisions to add more vertices:
+    </p>
+    <VertexVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 2: Faces & Triangles -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L22 20 H2 Z"/></svg>
+      2. Faces & Triangles
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      GPUs are optimized for one shape: <strong class="text-white">triangles</strong>. Every mesh, no matter how complex, 
+      is built from triangles. Why?
+    </p>
+    
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <ul class="list-none space-y-2 text-text-secondary">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Triangles are <strong class="text-white">always flat</strong> (3 points define a plane)
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Triangles are <strong class="text-white">always convex</strong> (no concave edges)
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+          Hardware is <strong class="text-white">massively optimized</strong> for triangle rasterization
+        </li>
+      </ul>
+    </div>
+
+    <p class="text-text-secondary mb-6">
+      A quad (4 vertices) is split into 2 triangles. A cube (6 faces) needs 12 triangles. A sphere? 
+      Hundreds or thousands of tiny triangles approximating the curve!
+    </p>
+
+    <CodeBlock client:load code={codeTriangles} language="javascript" />
+  </section>
+
+  <!-- Lesson 3: Normals -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="m5 12 7-7 7 7"/></svg>
+      3. Normals: Surface Direction
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      A <strong class="text-white">normal</strong> is a unit vector perpendicular to a surface. Normals are 
+      essential for lighting — they tell the shader which direction the surface faces.
+    </p>
+    
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="text-sm font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#ff6b6b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3"/></svg>
+          Face Normals
+        </h4>
+        <p class="text-sm text-text-secondary">
+          One normal per triangle. All pixels on the face have the same lighting = <strong class="text-white">flat shading</strong>.
+        </p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="text-sm font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+          Vertex Normals
+        </h4>
+        <p class="text-sm text-text-secondary">
+          One normal per vertex, interpolated across the face. Creates <strong class="text-white">smooth shading</strong> transitions.
+        </p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeNormals} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Normal Visualizer</h3>
+    <p class="text-text-secondary mb-4">
+      Compare flat vs smooth shading and see how normals affect lighting:
+    </p>
+    <NormalVisualizer client:visible />
+  </section>
+
+  <!-- Lesson 4: UV Coordinates -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+      4. UV Coordinates: Texture Mapping
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">UV coordinates</strong> define how a 2D texture wraps onto a 3D surface. 
+      They're called U and V (not X and Y) to avoid confusion with 3D coordinates.
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <span class="w-4 h-4 rounded bg-[#ff6b6b]"></span>
+        <strong class="text-white">U</strong> — Horizontal axis (0 = left, 1 = right)
+      </li>
+      <li class="flex items-center gap-2">
+        <span class="w-4 h-4 rounded bg-[#00b894]"></span>
+        <strong class="text-white">V</strong> — Vertical axis (0 = bottom, 1 = top)
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeUVCoordinates} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: UV Mapping Demo</h3>
+    <p class="text-text-secondary mb-4">
+      See how a checkerboard texture maps onto different shapes:
+    </p>
+    <UVMappingDemo client:visible />
+  </section>
+
+  <!-- Lesson 5: Index Buffers -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
+      5. Index Buffers: Efficient Storage
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Without index buffers, every triangle needs its own 3 vertices — even if they're shared with 
+      adjacent triangles. <strong class="text-white">Index buffers</strong> let us reuse vertex data:
+    </p>
+    
+    <div class="bg-bg-secondary p-4 rounded-lg mb-6 border border-border">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <h4 class="text-sm font-bold text-[#ff6b6b] mb-2">Without Indices</h4>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>36 vertices for a cube</li>
+            <li>Duplicate data everywhere</li>
+            <li>More memory, worse cache</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-sm font-bold text-[#00b894] mb-2">With Indices</h4>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>24 vertices + 36 indices</li>
+            <li>Vertices are reused</li>
+            <li>Less memory, better cache</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeIndexBuffer} language="javascript" />
+  </section>
+
+  <!-- Lesson 6: Procedural Geometry -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      6. Procedural Geometry
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Instead of modeling shapes by hand, we can generate them with <strong class="text-white">math</strong>! 
+      Procedural geometry is perfect for:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Primitives (boxes, spheres, cylinders, tori)
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        Terrain (heightmaps, noise-based landscapes)
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        LOD (Level of Detail) - adjust complexity at runtime
+      </li>
+    </ul>
+
+    <CodeBlock client:load code={codeProceduralGeometry} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Procedural Shape Builder</h3>
+    <p class="text-text-secondary mb-4">
+      Adjust parameters and watch how the mesh changes in real-time:
+    </p>
+    <ProceduralShapeBuilder client:visible />
+  </section>
+
+  <!-- Lesson 7: Mesh Manipulation -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
+      7. Mesh Manipulation
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      Once you have a mesh, you can modify it! Common techniques include:
+    </p>
+    
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="text-sm font-bold text-white mb-2">Deformation</h4>
+        <p class="text-xs text-text-secondary">
+          Bend, twist, or stretch the mesh by modifying vertex positions mathematically.
+        </p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="text-sm font-bold text-white mb-2">Morphing</h4>
+        <p class="text-xs text-text-secondary">
+          Blend between two shapes by interpolating vertex positions (morph targets).
+        </p>
+      </div>
+      <div class="bg-bg-secondary p-4 rounded-lg border border-border">
+        <h4 class="text-sm font-bold text-white mb-2">Vertex Animation</h4>
+        <p class="text-xs text-text-secondary">
+          Animate vertices over time for effects like water ripples, cloth, or organic movement.
+        </p>
+      </div>
+    </div>
+
+    <CodeBlock client:load code={codeMeshManipulation} language="javascript" />
+    
+    <h3 class="text-xl font-semibold text-white mt-8 mb-4">Try It: Mesh Deformation</h3>
+    <p class="text-text-secondary mb-4">
+      Watch vertex animation in action with wave, twist, and bulge deformations:
+    </p>
+    <MeshDeformationDemo client:visible />
+  </section>
+
+  <!-- Project: Mesh Editor -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m7.5 4.21 4.5 2.6 4.5-2.6"/><path d="M7.5 19.79V14.6L3 12"/><path d="M21 12l-4.5 2.6v5.19"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
+      Project: Interactive Mesh Editor
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Explore all the concepts from this module in one interactive tool! Switch between primitives, 
+      toggle visualization modes, and export mesh data.
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Load 6 different primitive shapes
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Toggle wireframe, vertices, and normals
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        View UV unwrap visualization
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        See mesh statistics (vertices, triangles, indices)
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Export mesh data as JSON
+      </li>
+    </ul>
+
+    <MeshEditor client:visible />
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+      Knowledge Check
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Test your understanding of 3D geometry concepts!
+    </p>
+
+    <Quiz 
+      client:visible
+      title="3D Geometry Quiz"
+      questions={quizQuestions}
+    />
+  </section>
+
+  <!-- Mark Complete -->
+  <section class="mb-16 py-8 border-y border-border">
+    <MarkComplete 
+      client:load 
+      moduleId="14-geometry" 
+      moduleName="3D Geometry & Meshes"
+    />
+  </section>
+
+  <!-- What's Next -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
+      Continue Your Journey
+    </h2>
+    
+    <p class="text-text-secondary mb-4">
+      You now understand the fundamental building blocks of 3D meshes! Here's where to explore next:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Shaders:</strong> Learn GLSL to control exactly how each pixel is colored
+      </li>
+      <li>
+        <strong class="text-white">Skeletal Animation:</strong> Bones, skinning, and rigging for character animation
+      </li>
+      <li>
+        <strong class="text-white">Level of Detail:</strong> Automatic mesh simplification for performance
+      </li>
+      <li>
+        <strong class="text-white">Normal Mapping:</strong> Fake geometric detail with texture tricks
+      </li>
+    </ol>
+
+    <div class="mt-8 p-6 bg-gradient-to-r from-[#6c5ce7]/20 to-[#00b894]/20 border border-[#6c5ce7] rounded-xl">
+      <div class="flex items-center gap-3 mb-3">
+        <svg class="w-6 h-6 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+        <span class="text-[#00b894] font-bold">Module Complete!</span>
+      </div>
+      <p class="text-text-secondary">
+        You've mastered the fundamentals of 3D mesh geometry. You understand vertices, faces, 
+        normals, UVs, and how to manipulate meshes programmatically. These concepts are the 
+        foundation of all 3D graphics programming!
+      </p>
+    </div>
+  </section>
+</ModuleLayout>
