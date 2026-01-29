@@ -125,11 +125,10 @@ interface VertexPointsProps {
   visible: boolean;
   selectedVertex: number | null;
   onSelectVertex: (index: number | null) => void;
+  showIndices?: boolean;
 }
 
-function VertexPoints({ geometry, visible, selectedVertex, onSelectVertex }: VertexPointsProps) {
-  const pointsRef = useRef<THREE.Points>(null);
-  
+function VertexPoints({ geometry, visible, selectedVertex, onSelectVertex, showIndices = true }: VertexPointsProps) {
   const positions = useMemo(() => {
     const posAttr = geometry.getAttribute('position');
     return Array.from({ length: posAttr.count }, (_, i) => 
@@ -137,21 +136,37 @@ function VertexPoints({ geometry, visible, selectedVertex, onSelectVertex }: Ver
     );
   }, [geometry]);
 
+  // Limit index labels to avoid clutter on high-poly meshes
+  const showIndexLimit = 100;
+
   if (!visible) return null;
 
   return (
     <group>
       {positions.map((pos, i) => (
-        <mesh
-          key={i}
-          position={pos}
-          onClick={(e) => { e.stopPropagation(); onSelectVertex(selectedVertex === i ? null : i); }}
-        >
-          <sphereGeometry args={[0.05, 8, 8]} />
-          <meshBasicMaterial 
-            color={selectedVertex === i ? '#ff6b6b' : '#00b894'} 
-          />
-        </mesh>
+        <group key={i} position={pos}>
+          <mesh
+            onClick={(e) => { e.stopPropagation(); onSelectVertex(selectedVertex === i ? null : i); }}
+          >
+            <sphereGeometry args={[0.05, 8, 8]} />
+            <meshBasicMaterial 
+              color={selectedVertex === i ? '#ff6b6b' : '#00b894'} 
+            />
+          </mesh>
+          {showIndices && positions.length <= showIndexLimit && (
+            <Html position={[0.08, 0.08, 0]} center distanceFactor={10}>
+              <span 
+                className={`text-[10px] font-mono px-1 rounded select-none pointer-events-none ${
+                  selectedVertex === i 
+                    ? 'text-[#ff6b6b] bg-black/80' 
+                    : 'text-[#ffd43b] bg-black/60'
+                }`}
+              >
+                {i}
+              </span>
+            </Html>
+          )}
+        </group>
       ))}
     </group>
   );
@@ -284,6 +299,7 @@ interface MeshViewerProps {
   hoveredFace: number | null;
   onHoverFace: (index: number | null) => void;
   editMode: boolean;
+  showVertexIndices?: boolean;
 }
 
 function MeshViewer({
@@ -296,7 +312,8 @@ function MeshViewer({
   onSelectVertex,
   hoveredFace,
   onHoverFace,
-  editMode
+  editMode,
+  showVertexIndices = true
 }: MeshViewerProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const [autoRotate, setAutoRotate] = useState(true);
@@ -336,6 +353,7 @@ function MeshViewer({
         visible={showVertices} 
         selectedVertex={selectedVertex}
         onSelectVertex={onSelectVertex}
+        showIndices={showVertexIndices}
       />
       <NormalsVisualizer geometry={geometry} visible={showNormals} length={normalLength} />
       <FaceHighlighter geometry={geometry} hoveredFace={hoveredFace} />
