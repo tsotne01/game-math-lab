@@ -653,9 +653,29 @@ export default function CombatSystem() {
       ctx.font = 'bold 9px Inter, sans-serif';
       const textWidth = ctx.measureText(stateText).width;
       
-      // Draw pill background
+      // Draw pill background (with fallback for older browsers)
+      const pillX = x - textWidth/2 - 6;
+      const pillY = indicatorY - 8;
+      const pillW = textWidth + 12;
+      const pillH = 14;
+      const pillR = 7;
+      
       ctx.beginPath();
-      ctx.roundRect(x - textWidth/2 - 6, indicatorY - 8, textWidth + 12, 14, 7);
+      if (ctx.roundRect) {
+        ctx.roundRect(pillX, pillY, pillW, pillH, pillR);
+      } else {
+        // Fallback for browsers without roundRect
+        ctx.moveTo(pillX + pillR, pillY);
+        ctx.lineTo(pillX + pillW - pillR, pillY);
+        ctx.quadraticCurveTo(pillX + pillW, pillY, pillX + pillW, pillY + pillR);
+        ctx.lineTo(pillX + pillW, pillY + pillH - pillR);
+        ctx.quadraticCurveTo(pillX + pillW, pillY + pillH, pillX + pillW - pillR, pillY + pillH);
+        ctx.lineTo(pillX + pillR, pillY + pillH);
+        ctx.quadraticCurveTo(pillX, pillY + pillH, pillX, pillY + pillH - pillR);
+        ctx.lineTo(pillX, pillY + pillR);
+        ctx.quadraticCurveTo(pillX, pillY, pillX + pillR, pillY);
+        ctx.closePath();
+      }
       ctx.fill();
       
       // Draw state text
@@ -993,11 +1013,12 @@ export function StateMachineVisualizer() {
   // State positions for visualization
   const states: Record<string, { x: number; y: number; color: string }> = {
     idle: { x: 150, y: 200, color: '#6c5ce7' },
-    walk: { x: 300, y: 100, color: '#00b894' },
-    jump: { x: 300, y: 300, color: '#74b9ff' },
-    attack: { x: 500, y: 150, color: '#e17055' },
-    hit: { x: 500, y: 250, color: '#fdcb6e' },
-    block: { x: 150, y: 320, color: '#00b894' },
+    walk: { x: 300, y: 80, color: '#00b894' },
+    jump: { x: 300, y: 320, color: '#74b9ff' },
+    attack: { x: 480, y: 120, color: '#e17055' },
+    hit: { x: 480, y: 200, color: '#fdcb6e' },
+    block: { x: 150, y: 320, color: '#55efc4' },
+    death: { x: 580, y: 280, color: '#636e72' },
   };
 
   // Transitions
@@ -1007,14 +1028,19 @@ export function StateMachineVisualizer() {
     { from: 'idle', to: 'jump', condition: '↑ pressed' },
     { from: 'walk', to: 'jump', condition: '↑ pressed' },
     { from: 'jump', to: 'idle', condition: 'landed' },
+    { from: 'jump', to: 'attack', condition: 'Z or X (air)' },
     { from: 'idle', to: 'attack', condition: 'Z or X' },
     { from: 'walk', to: 'attack', condition: 'Z or X' },
     { from: 'attack', to: 'idle', condition: 'anim done' },
     { from: 'idle', to: 'hit', condition: 'took damage' },
     { from: 'walk', to: 'hit', condition: 'took damage' },
+    { from: 'attack', to: 'hit', condition: 'took damage' },
+    { from: 'jump', to: 'hit', condition: 'took damage' },
     { from: 'hit', to: 'idle', condition: 'stun done' },
+    { from: 'hit', to: 'death', condition: 'health ≤ 0' },
     { from: 'idle', to: 'block', condition: 'C held' },
     { from: 'block', to: 'idle', condition: 'C released' },
+    { from: 'block', to: 'hit', condition: 'guard broken' },
   ];
 
   useEffect(() => {
