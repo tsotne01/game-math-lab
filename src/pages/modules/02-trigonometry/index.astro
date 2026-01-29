@@ -453,4 +453,20 @@ const quizQuestions = [
       </div>
     </div>
   </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of trigonometry concepts! Use number keys 1-4 to select answers.
+    </p>
+    <Quiz 
+      client:visible 
+      title="Trigonometry Quiz" 
+      questions={quizQuestions} 
+    />
+  </section>
 </ModuleLayout>

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 
 // Constants
 const PADDLE_WIDTH = 12;
