@@ -441,13 +441,16 @@ export function SingleRayDemo() {
           width={400}
           height={400}
           className="bg-[#0a0a0a] rounded-lg border border-border mx-auto"
+          aria-label="Single ray visualization showing ray casting from player to wall"
+          role="img"
         />
         <div className="flex-1 space-y-4">
           <div>
-            <label className="block text-sm text-text-secondary mb-2">
+            <label htmlFor="single-ray-angle" className="block text-sm text-text-secondary mb-2">
               Ray Angle: {((rayAngle * 180) / Math.PI).toFixed(1)}°
             </label>
             <input
+              id="single-ray-angle"
               type="range"
               min={-Math.PI}
               max={Math.PI}
@@ -455,6 +458,7 @@ export function SingleRayDemo() {
               value={rayAngle}
               onChange={(e) => setRayAngle(parseFloat(e.target.value))}
               className="w-full accent-accent"
+              aria-label={`Ray angle: ${((rayAngle * 180) / Math.PI).toFixed(1)} degrees`}
             />
           </div>
           <div className="bg-bg-card p-4 rounded-lg">
@@ -612,13 +616,16 @@ export function DDADemo() {
           width={400}
           height={400}
           className="bg-[#0a0a0a] rounded-lg border border-border mx-auto"
+          aria-label="DDA algorithm step-through visualization showing how the ray steps through grid cells"
+          role="img"
         />
         <div className="flex-1 space-y-4">
           <div>
-            <label className="block text-sm text-text-secondary mb-2">
+            <label htmlFor="dda-ray-direction" className="block text-sm text-text-secondary mb-2">
               Ray Direction: {((rayAngle * 180) / Math.PI).toFixed(1)}°
             </label>
             <input
+              id="dda-ray-direction"
               type="range"
               min={-Math.PI / 2}
               max={Math.PI / 2}
@@ -629,12 +636,14 @@ export function DDADemo() {
                 setStep(0);
               }}
               className="w-full accent-accent"
+              aria-label={`Ray direction: ${((rayAngle * 180) / Math.PI).toFixed(1)} degrees`}
             />
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
               className="flex-1 btn btn-primary flex items-center justify-center gap-2"
+              aria-label={isPlaying ? 'Pause DDA animation' : 'Play DDA animation'}
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               {isPlaying ? 'Pause' : 'Play'}
@@ -645,15 +654,17 @@ export function DDADemo() {
                 setIsPlaying(false);
               }}
               className="btn bg-bg-card border border-border"
+              aria-label="Reset DDA animation to beginning"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-2">
+            <label htmlFor="dda-step-slider" className="block text-sm text-text-secondary mb-2">
               Step: {step + 1} / {steps.length}
             </label>
             <input
+              id="dda-step-slider"
               type="range"
               min={0}
               max={steps.length - 1}
@@ -663,6 +674,7 @@ export function DDADemo() {
                 setIsPlaying(false);
               }}
               className="w-full accent-accent"
+              aria-label={`DDA step ${step + 1} of ${steps.length}`}
             />
           </div>
           <div className="bg-bg-card p-4 rounded-lg">
@@ -754,6 +766,8 @@ export function FisheyeDemo() {
         width={600}
         height={300}
         className="w-full bg-[#0a0a0a] rounded-lg border border-border mb-4"
+        aria-label={`Fisheye comparison: ${corrected ? 'corrected view (flat walls)' : 'uncorrected view (curved walls)'}`}
+        role="img"
       />
       <div className="flex flex-col sm:flex-row gap-4">
         <label className="flex items-center gap-2 cursor-pointer">
@@ -762,18 +776,21 @@ export function FisheyeDemo() {
             checked={corrected}
             onChange={(e) => setCorrected(e.target.checked)}
             className="accent-accent w-4 h-4"
+            aria-label="Toggle fisheye correction"
           />
           <span className="text-white">Apply Fisheye Correction</span>
         </label>
         <div className="flex-1">
-          <label className="text-sm text-text-secondary">FOV: {fov}°</label>
+          <label htmlFor="fisheye-fov" className="text-sm text-text-secondary">FOV: {fov}°</label>
           <input
+            id="fisheye-fov"
             type="range"
             min={30}
             max={120}
             value={fov}
             onChange={(e) => setFov(parseInt(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Field of view: ${fov} degrees`}
           />
         </div>
       </div>
@@ -885,6 +902,8 @@ export function TextureMappingDemo() {
             width={128}
             height={128}
             className="bg-[#0a0a0a] rounded-lg border border-border"
+            aria-label="Brick texture with vertical selection line showing which texel column will be sampled"
+            role="img"
           />
         </div>
         <div>
@@ -897,15 +916,18 @@ export function TextureMappingDemo() {
             width={200}
             height={200}
             className="bg-[#0a0a0a] rounded-lg border border-border"
+            aria-label={`Rendered wall column at wallX ${wallX.toFixed(2)}, distance ${distance.toFixed(1)}`}
+            role="img"
           />
         </div>
       </div>
       <div className="mt-4 space-y-4">
         <div>
-          <label className="text-sm text-text-secondary">
+          <label htmlFor="texture-wallx" className="text-sm text-text-secondary">
             wallX (hit position): {wallX.toFixed(2)}
           </label>
           <input
+            id="texture-wallx"
             type="range"
             min={0}
             max={1}
@@ -913,13 +935,15 @@ export function TextureMappingDemo() {
             value={wallX}
             onChange={(e) => setWallX(parseFloat(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Wall X position: ${wallX.toFixed(2)}`}
           />
         </div>
         <div>
-          <label className="text-sm text-text-secondary">
+          <label htmlFor="texture-distance" className="text-sm text-text-secondary">
             Distance: {distance.toFixed(1)}
           </label>
           <input
+            id="texture-distance"
             type="range"
             min={0.5}
             max={10}
@@ -927,6 +951,7 @@ export function TextureMappingDemo() {
             value={distance}
             onChange={(e) => setDistance(parseFloat(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Distance: ${distance.toFixed(1)} units`}
           />
         </div>
       </div>
@@ -1435,6 +1460,54 @@ export default function WolfensteinRenderer() {
           <div>
             <span className="text-text-secondary">Angle: </span>
             <span className="text-white font-mono">{((player.angle * 180) / Math.PI).toFixed(1)}°</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile D-Pad Controls */}
+      <div className="mt-4 sm:hidden">
+        <p className="text-xs text-text-secondary mb-2 text-center">Touch Controls</p>
+        <div className="flex justify-center">
+          <div className="grid grid-cols-3 gap-1" role="group" aria-label="Movement controls">
+            <div></div>
+            <button
+              className="w-14 h-14 bg-bg-card border border-border rounded-lg flex items-center justify-center active:bg-accent/30 touch-none"
+              onTouchStart={() => setKeysPressed(prev => new Set(prev).add('w'))}
+              onTouchEnd={() => setKeysPressed(prev => { const next = new Set(prev); next.delete('w'); return next; })}
+              aria-label="Move forward"
+            >
+              <ChevronRight className="w-6 h-6 text-white -rotate-90" />
+            </button>
+            <div></div>
+            <button
+              className="w-14 h-14 bg-bg-card border border-border rounded-lg flex items-center justify-center active:bg-accent/30 touch-none"
+              onTouchStart={() => setKeysPressed(prev => new Set(prev).add('a'))}
+              onTouchEnd={() => setKeysPressed(prev => { const next = new Set(prev); next.delete('a'); return next; })}
+              aria-label="Rotate left"
+            >
+              <ChevronRight className="w-6 h-6 text-white rotate-180" />
+            </button>
+            <div className="w-14 h-14 bg-bg-card/50 border border-border/50 rounded-lg flex items-center justify-center">
+              <Move className="w-5 h-5 text-text-secondary" />
+            </div>
+            <button
+              className="w-14 h-14 bg-bg-card border border-border rounded-lg flex items-center justify-center active:bg-accent/30 touch-none"
+              onTouchStart={() => setKeysPressed(prev => new Set(prev).add('d'))}
+              onTouchEnd={() => setKeysPressed(prev => { const next = new Set(prev); next.delete('d'); return next; })}
+              aria-label="Rotate right"
+            >
+              <ChevronRight className="w-6 h-6 text-white" />
+            </button>
+            <div></div>
+            <button
+              className="w-14 h-14 bg-bg-card border border-border rounded-lg flex items-center justify-center active:bg-accent/30 touch-none"
+              onTouchStart={() => setKeysPressed(prev => new Set(prev).add('s'))}
+              onTouchEnd={() => setKeysPressed(prev => { const next = new Set(prev); next.delete('s'); return next; })}
+              aria-label="Move backward"
+            >
+              <ChevronRight className="w-6 h-6 text-white rotate-90" />
+            </button>
+            <div></div>
           </div>
         </div>
       </div>
