@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Gamepad2, RotateCcw, Circle, Grid3X3, Move, Zap } from 'lucide-react';
+import { Gamepad2, RotateCcw, Circle, Grid3X3, Move, Zap, Smartphone } from 'lucide-react';
 
 // ============== TYPES ==============
 interface Vec2 {
@@ -38,6 +38,18 @@ interface Coin {
   radius: number;
   collected: boolean;
   bobOffset: number;
+  collectTime?: number; // For collection animation
+}
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: string;
+  size: number;
 }
 
 interface Tile {
@@ -186,12 +198,19 @@ export default function Platformer() {
   const [score, setScore] = useState(0);
   const [gameWon, setGameWon] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const respawnFlashRef = useRef(0); // Timer for death/respawn flash effect
   
   const keysRef = useRef<Set<string>>(new Set());
+  const touchRef = useRef<{ left: boolean; right: boolean; jump: boolean }>({
+    left: false,
+    right: false,
+    jump: false
+  });
   const gameRef = useRef<{
     player: Player;
     tiles: Tile[];
     coins: Coin[];
+    particles: Particle[];
     checkedTiles: Set<string>;
     totalCoins: number;
   }>({
@@ -201,6 +220,7 @@ export default function Platformer() {
     },
     tiles: [],
     coins: [],
+    particles: [],
     checkedTiles: new Set(),
     totalCoins: 0
   });
@@ -247,9 +267,30 @@ export default function Platformer() {
       x: 64, y: 280, width: 24, height: 32,
       vx: 0, vy: 0, grounded: false, facingRight: true, animFrame: 0
     };
+    gameRef.current.particles = [];
     setScore(0);
     setGameWon(false);
   }, [parseLevel]);
+
+  // Helper to spawn coin collection particles
+  const spawnCoinParticles = useCallback((x: number, y: number) => {
+    // TODO: Add sound effect here - play coin collect sound
+    const colors = ['#fdcb6e', '#ffeaa7', '#f39c12', '#fff'];
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.3;
+      const speed = 2 + Math.random() * 3;
+      gameRef.current.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        life: 30 + Math.random() * 20,
+        maxLife: 50,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 3 + Math.random() * 3
+      });
+    }
+  }, []);
 
   useEffect(() => {
     parseLevel();
@@ -304,10 +345,11 @@ export default function Platformer() {
       // Clear checked tiles for debug
       gameRef.current.checkedTiles.clear();
       
-      // Input handling
-      const moveLeft = keys.has('a') || keys.has('arrowleft');
-      const moveRight = keys.has('d') || keys.has('arrowright');
-      const jump = keys.has('w') || keys.has('arrowup') || keys.has(' ');
+      // Input handling (keyboard + touch)
+      const touch = touchRef.current;
+      const moveLeft = keys.has('a') || keys.has('arrowleft') || touch.left;
+      const moveRight = keys.has('d') || keys.has('arrowright') || touch.right;
+      const jump = keys.has('w') || keys.has('arrowup') || keys.has(' ') || touch.jump;
       
       // Horizontal movement with acceleration
       if (moveLeft) {
@@ -421,11 +463,18 @@ export default function Platformer() {
       // World bounds
       player.x = Math.max(0, Math.min(width - player.width, player.x));
       if (player.y > height) {
-        // Fell off - reset position
+        // Fell off - reset position with visual feedback
         player.x = 64;
         player.y = 280;
         player.vx = 0;
         player.vy = 0;
+        respawnFlashRef.current = 30; // Flash for 30 frames
+        // TODO: Add sound effect here - play death/respawn sound
+      }
+      
+      // Update respawn flash timer
+      if (respawnFlashRef.current > 0) {
+        respawnFlashRef.current--;
       }
       
       // Coin collection (circle vs AABB)
@@ -440,15 +489,32 @@ export default function Platformer() {
         
         if (circleVsCircle(playerCenter, { x: coin.x, y: coin.y, radius: coin.radius })) {
           coin.collected = true;
+          coin.collectTime = frameCount;
+          // Spawn particles for visual feedback
+          spawnCoinParticles(coin.x, coin.y);
           setScore(s => {
             const newScore = s + 1;
             if (newScore >= gameRef.current.totalCoins) {
               setGameWon(true);
+              // TODO: Add sound effect here - play victory sound
             }
             return newScore;
           });
         }
       });
+      
+      // Update particles
+      const { particles } = gameRef.current;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.15; // Gravity
+        p.life--;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
       
       // Animation
       if (Math.abs(player.vx) > 0.5) {
@@ -459,7 +525,7 @@ export default function Platformer() {
     };
 
     const render = () => {
-      const { player, tiles, coins, checkedTiles } = gameRef.current;
+      const { player, tiles, coins, particles, checkedTiles } = gameRef.current;
       
       // Background gradient
       const gradient = ctx.createLinearGradient(0, 0, 0, height);
@@ -550,6 +616,17 @@ export default function Platformer() {
         }
       });
       
+      // Draw particles (coin collection effects)
+      particles.forEach(p => {
+        const alpha = p.life / p.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      
       // Draw player
       ctx.save();
       ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
@@ -606,6 +683,21 @@ export default function Platformer() {
         ctx.stroke();
       }
       
+      // Respawn flash effect
+      if (respawnFlashRef.current > 0) {
+        const flashAlpha = (respawnFlashRef.current / 30) * 0.5;
+        ctx.fillStyle = `rgba(225, 112, 85, ${flashAlpha})`;
+        ctx.fillRect(0, 0, width, height);
+        
+        // Show "Oops!" text during flash
+        if (respawnFlashRef.current > 15) {
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 24px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('Oops!', width / 2, height / 2);
+        }
+      }
+      
       // UI
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 20px Inter, sans-serif';
@@ -646,20 +738,38 @@ export default function Platformer() {
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [gameWon, showDebug]);
+  }, [gameWon, showDebug, spawnCoinParticles]);
+
+  // Touch control handlers
+  const handleTouchStart = useCallback((action: 'left' | 'right' | 'jump') => {
+    touchRef.current[action] = true;
+    // TODO: Add haptic feedback for mobile
+  }, []);
+
+  const handleTouchEnd = useCallback((action: 'left' | 'right' | 'jump') => {
+    touchRef.current[action] = false;
+  }, []);
 
   return (
     <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
-      <canvas 
-        ref={canvasRef}
-        className="block mx-auto rounded-lg"
-        style={{ width, height }}
-        tabIndex={0}
-      />
+      {/* Responsive canvas container */}
+      <div className="relative w-full overflow-x-auto">
+        <canvas 
+          ref={canvasRef}
+          className="block mx-auto rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6c5ce7]"
+          style={{ width, height, maxWidth: '100%', minWidth: `${width}px` }}
+          tabIndex={0}
+          role="application"
+          aria-label="Platformer game. Use WASD or Arrow keys to move, Space or W to jump. Collect all coins to win."
+        />
+      </div>
+      
+      {/* Control buttons */}
       <div className="flex justify-center gap-4 mt-4">
         <button
           onClick={resetGame}
           className="px-6 py-2 bg-[#6c5ce7] text-white font-semibold rounded-lg hover:bg-[#8677ed] transition-colors flex items-center gap-2"
+          aria-label="Reset game"
         >
           <RotateCcw className="w-4 h-4" /> Reset
         </button>
@@ -670,12 +780,56 @@ export default function Platformer() {
               ? 'bg-[#e17055] text-white' 
               : 'bg-[#2a2a3a] text-[#a0a0b0] hover:bg-[#3a3a4a]'
           }`}
+          aria-label={showDebug ? 'Hide debug info' : 'Show debug info'}
+          aria-pressed={showDebug}
         >
           <Grid3X3 className="w-4 h-4" /> Debug
         </button>
       </div>
-      <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
+      
+      {/* Touch controls for mobile */}
+      <div className="flex justify-center gap-2 mt-4 md:hidden" role="group" aria-label="Touch controls">
+        <button
+          onTouchStart={() => handleTouchStart('left')}
+          onTouchEnd={() => handleTouchEnd('left')}
+          onMouseDown={() => handleTouchStart('left')}
+          onMouseUp={() => handleTouchEnd('left')}
+          onMouseLeave={() => handleTouchEnd('left')}
+          className="w-16 h-16 bg-[#2a2a3a] active:bg-[#3a3a4a] rounded-xl flex items-center justify-center text-white text-2xl select-none touch-none"
+          aria-label="Move left"
+        >
+          ←
+        </button>
+        <button
+          onTouchStart={() => handleTouchStart('jump')}
+          onTouchEnd={() => handleTouchEnd('jump')}
+          onMouseDown={() => handleTouchStart('jump')}
+          onMouseUp={() => handleTouchEnd('jump')}
+          onMouseLeave={() => handleTouchEnd('jump')}
+          className="w-20 h-16 bg-[#00b894] active:bg-[#00a383] rounded-xl flex items-center justify-center text-white text-lg font-bold select-none touch-none"
+          aria-label="Jump"
+        >
+          JUMP
+        </button>
+        <button
+          onTouchStart={() => handleTouchStart('right')}
+          onTouchEnd={() => handleTouchEnd('right')}
+          onMouseDown={() => handleTouchStart('right')}
+          onMouseUp={() => handleTouchEnd('right')}
+          onMouseLeave={() => handleTouchEnd('right')}
+          className="w-16 h-16 bg-[#2a2a3a] active:bg-[#3a3a4a] rounded-xl flex items-center justify-center text-white text-2xl select-none touch-none"
+          aria-label="Move right"
+        >
+          →
+        </button>
+      </div>
+      
+      {/* Instructions */}
+      <p className="text-center text-sm text-[#a0a0b0] mt-3 hidden md:flex items-center justify-center gap-1">
         <Gamepad2 className="w-4 h-4" /> WASD or Arrow Keys to move, W/Space to jump
+      </p>
+      <p className="text-center text-sm text-[#a0a0b0] mt-3 flex md:hidden items-center justify-center gap-1">
+        <Smartphone className="w-4 h-4" /> Use touch buttons below to play
       </p>
     </div>
   );
@@ -695,12 +849,31 @@ export function AABBVisualizer() {
   const isColliding = aabbVsAabb(boxA, boxB);
   const overlap = isColliding ? getAabbOverlap(boxA, boxB) : null;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  // Get coordinates from mouse or touch event
+  const getCoords = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!rect) return null;
     
-    const x = (e.clientX - rect.left) * (width / rect.width);
-    const y = (e.clientY - rect.top) * (height / rect.height);
+    let clientX: number, clientY: number;
+    if ('touches' in e) {
+      if (e.touches.length === 0) return null;
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * (width / rect.width),
+      y: (clientY - rect.top) * (height / rect.height)
+    };
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const coords = getCoords(e);
+    if (!coords) return;
+    const { x, y } = coords;
     
     // Check if clicking on box A
     if (x >= boxA.x && x <= boxA.x + boxA.width && y >= boxA.y && y <= boxA.y + boxA.height) {
@@ -714,25 +887,23 @@ export function AABBVisualizer() {
       setDragging('B');
       setDragOffset({ x: x - boxB.x, y: y - boxB.y });
     }
-  }, [boxA, boxB]);
+  }, [boxA, boxB, getCoords]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!dragging) return;
     
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const x = (e.clientX - rect.left) * (width / rect.width);
-    const y = (e.clientY - rect.top) * (height / rect.height);
+    const coords = getCoords(e);
+    if (!coords) return;
+    const { x, y } = coords;
     
     if (dragging === 'A') {
       setBoxA(prev => ({ ...prev, x: x - dragOffset.x, y: y - dragOffset.y }));
     } else {
       setBoxB(prev => ({ ...prev, x: x - dragOffset.x, y: y - dragOffset.y }));
     }
-  }, [dragging, dragOffset]);
+  }, [dragging, dragOffset, getCoords]);
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     setDragging(null);
   }, []);
 
@@ -821,15 +992,23 @@ export function AABBVisualizer() {
 
   return (
     <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
-      <canvas 
-        ref={canvasRef}
-        className="block mx-auto rounded-lg cursor-move"
-        style={{ width, height }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      />
+      <div className="relative w-full overflow-x-auto">
+        <canvas 
+          ref={canvasRef}
+          className="block mx-auto rounded-lg cursor-move touch-none"
+          style={{ width, height, maxWidth: '100%', minWidth: `${width}px` }}
+          onMouseDown={handlePointerDown}
+          onMouseMove={handlePointerMove}
+          onMouseUp={handlePointerUp}
+          onMouseLeave={handlePointerUp}
+          onTouchStart={handlePointerDown}
+          onTouchMove={handlePointerMove}
+          onTouchEnd={handlePointerUp}
+          role="application"
+          aria-label="AABB collision visualizer. Drag Box A (purple) and Box B (green) to see collision detection in action."
+          tabIndex={0}
+        />
+      </div>
       <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
         <Move className="w-4 h-4" /> Drag the boxes to test AABB collision detection
       </p>
@@ -853,12 +1032,31 @@ export function CircleVisualizer() {
   const distance = Math.sqrt(dx * dx + dy * dy);
   const combinedRadii = circleA.radius + circleB.radius;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  // Get coordinates from mouse or touch event
+  const getCoords = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!rect) return null;
     
-    const x = (e.clientX - rect.left) * (width / rect.width);
-    const y = (e.clientY - rect.top) * (height / rect.height);
+    let clientX: number, clientY: number;
+    if ('touches' in e) {
+      if (e.touches.length === 0) return null;
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * (width / rect.width),
+      y: (clientY - rect.top) * (height / rect.height)
+    };
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const coords = getCoords(e);
+    if (!coords) return;
+    const { x, y } = coords;
     
     // Check if clicking on circle A
     const distA = Math.sqrt((x - circleA.x) ** 2 + (y - circleA.y) ** 2);
@@ -872,25 +1070,23 @@ export function CircleVisualizer() {
     if (distB <= circleB.radius) {
       setDragging('B');
     }
-  }, [circleA, circleB]);
+  }, [circleA, circleB, getCoords]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!dragging) return;
     
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const x = (e.clientX - rect.left) * (width / rect.width);
-    const y = (e.clientY - rect.top) * (height / rect.height);
+    const coords = getCoords(e);
+    if (!coords) return;
+    const { x, y } = coords;
     
     if (dragging === 'A') {
       setCircleA(prev => ({ ...prev, x, y }));
     } else {
       setCircleB(prev => ({ ...prev, x, y }));
     }
-  }, [dragging]);
+  }, [dragging, getCoords]);
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     setDragging(null);
   }, []);
 
@@ -976,15 +1172,23 @@ export function CircleVisualizer() {
 
   return (
     <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
-      <canvas 
-        ref={canvasRef}
-        className="block mx-auto rounded-lg cursor-move"
-        style={{ width, height }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      />
+      <div className="relative w-full overflow-x-auto">
+        <canvas 
+          ref={canvasRef}
+          className="block mx-auto rounded-lg cursor-move touch-none"
+          style={{ width, height, maxWidth: '100%', minWidth: `${width}px` }}
+          onMouseDown={handlePointerDown}
+          onMouseMove={handlePointerMove}
+          onMouseUp={handlePointerUp}
+          onMouseLeave={handlePointerUp}
+          onTouchStart={handlePointerDown}
+          onTouchMove={handlePointerMove}
+          onTouchEnd={handlePointerUp}
+          role="application"
+          aria-label="Circle collision visualizer. Drag Circle A and Circle B to see distance-based collision detection."
+          tabIndex={0}
+        />
+      </div>
       <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
         <Circle className="w-4 h-4" /> Drag circles to test distance-based collision
       </p>
@@ -1166,15 +1370,20 @@ export function SweptCollisionVisualizer() {
 
   return (
     <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
-      <canvas 
-        ref={canvasRef}
-        className="block mx-auto rounded-lg"
-        style={{ width, height }}
-      />
-      <div className="flex flex-wrap justify-center gap-6 mt-4">
+      <div className="relative w-full overflow-x-auto">
+        <canvas 
+          ref={canvasRef}
+          className="block mx-auto rounded-lg"
+          style={{ width, height, maxWidth: '100%', minWidth: `${width}px` }}
+          role="img"
+          aria-label={`Swept AABB collision demo showing a projectile moving at speed ${velocity} and angle ${angle} degrees. ${sweepResult.time < 1 ? `Collision detected at ${(sweepResult.time * 100).toFixed(0)}% of movement path.` : 'No collision detected.'}`}
+        />
+      </div>
+      <div className="flex flex-wrap justify-center gap-6 mt-4" role="group" aria-label="Swept collision controls">
         <div className="flex items-center gap-4">
-          <span className="text-[#a0a0b0]">Speed:</span>
+          <label htmlFor="speed-slider" className="text-[#a0a0b0]">Speed:</label>
           <input
+            id="speed-slider"
             type="range"
             min="5"
             max="30"
@@ -1182,12 +1391,16 @@ export function SweptCollisionVisualizer() {
             value={velocity}
             onChange={(e) => setVelocity(parseFloat(e.target.value))}
             className="w-32 accent-[#fdcb6e]"
+            aria-valuemin={5}
+            aria-valuemax={30}
+            aria-valuenow={velocity}
           />
-          <span className="text-white w-12">{velocity}</span>
+          <span className="text-white w-12" aria-hidden="true">{velocity}</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-[#a0a0b0]">Angle:</span>
+          <label htmlFor="angle-slider" className="text-[#a0a0b0]">Angle:</label>
           <input
+            id="angle-slider"
             type="range"
             min="-60"
             max="60"
@@ -1195,12 +1408,15 @@ export function SweptCollisionVisualizer() {
             value={angle}
             onChange={(e) => setAngle(parseFloat(e.target.value))}
             className="w-32 accent-[#6c5ce7]"
+            aria-valuemin={-60}
+            aria-valuemax={60}
+            aria-valuenow={angle}
           />
-          <span className="text-white w-12">{angle}°</span>
+          <span className="text-white w-12" aria-hidden="true">{angle}°</span>
         </div>
       </div>
       <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
-        <Zap className="w-4 h-4" /> Swept collision prevents fast objects from tunneling through obstacles
+        <Zap className="w-4 h-4" aria-hidden="true" /> Swept collision prevents fast objects from tunneling through obstacles
       </p>
     </div>
   );

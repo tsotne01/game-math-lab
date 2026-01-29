@@ -2,6 +2,7 @@
 import ModuleLayout from '../../../layouts/ModuleLayout.astro';
 import Platformer, { AABBVisualizer, CircleVisualizer, SweptCollisionVisualizer } from '../../../components/modules/Platformer';
 import Quiz from '../../../components/lessons/Quiz';
+import CodeBlock from '../../../components/ui/CodeBlock';
 
 // Code snippets
 const codeAABB = `// AABB vs AABB collision detection
@@ -244,7 +245,7 @@ const quizQuestions = [
   moduleNumber="04"
   projectName="Platformer Game"
   prevModule={{ href: '/modules/03-physics/', title: 'Physics Simulation' }}
-  nextModule={{ href: '/modules/05-matrices/', title: 'Matrix Math' }}
+  nextModule={{ href: '/modules/05-state-machines/', title: 'State Machines' }}
 >
   <!-- Lesson 1: AABB vs AABB -->
   <section class="mb-16">
@@ -281,9 +282,7 @@ const quizQuestions = [
       </li>
     </ul>
 
-    <div class="bg-bg-card rounded-xl p-6 mb-6">
-      <pre class="text-sm overflow-x-auto"><code set:text={codeAABB} /></pre>
-    </div>
+    <CodeBlock client:load code={codeAABB} language="javascript" />
 
     <p class="text-text-secondary mb-4">
       Try dragging the boxes below to see AABB collision in action:
@@ -316,9 +315,7 @@ const quizQuestions = [
       <code class="text-lg text-white">distance &lt; radius₁ + radius₂</code>
     </div>
 
-    <div class="bg-bg-card rounded-xl p-6 mb-6">
-      <pre class="text-sm overflow-x-auto"><code set:text={codeCircle} /></pre>
-    </div>
+    <CodeBlock client:load code={codeCircle} language="javascript" />
 
     <CircleVisualizer client:visible />
 
@@ -348,9 +345,7 @@ const quizQuestions = [
       We "clamp" the circle's center to the box's bounds, giving us the nearest point:
     </p>
 
-    <div class="bg-bg-card rounded-xl p-6 mb-6">
-      <pre class="text-sm overflow-x-auto"><code set:text={codeCircleAABB} /></pre>
-    </div>
+    <CodeBlock client:load code={codeCircleAABB} language="javascript" />
 
     <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
       <p class="text-sm text-text-secondary flex items-start gap-2">
@@ -378,9 +373,7 @@ const quizQuestions = [
       the player might touch</strong>:
     </p>
 
-    <div class="bg-bg-card rounded-xl p-6 mb-6">
-      <pre class="text-sm overflow-x-auto"><code set:text={codeTileCollision} /></pre>
-    </div>
+    <CodeBlock client:load code={codeTileCollision} language="javascript" />
 
     <ul class="list-none space-y-3 mb-6 text-text-secondary">
       <li class="flex items-start gap-2">
@@ -420,13 +413,9 @@ const quizQuestions = [
       prevents corner-sticking and makes movement predictable:
     </p>
 
-    <div class="bg-bg-card rounded-xl p-6 mb-6">
-      <pre class="text-sm overflow-x-auto"><code set:text={codeResolution} /></pre>
-    </div>
+    <CodeBlock client:load code={codeResolution} language="javascript" />
 
-    <div class="bg-bg-card rounded-xl p-6 mb-6">
-      <pre class="text-sm overflow-x-auto"><code set:text={codeAABBOverlap} /></pre>
-    </div>
+    <CodeBlock client:load code={codeAABBOverlap} language="javascript" />
   </section>
 
   <!-- Lesson 6: Swept Collision -->
@@ -446,9 +435,7 @@ const quizQuestions = [
       movement, not just the final position. It answers: "When during this movement would collision occur?"
     </p>
 
-    <div class="bg-bg-card rounded-xl p-6 mb-6">
-      <pre class="text-sm overflow-x-auto"><code set:text={codeSwept} /></pre>
-    </div>
+    <CodeBlock client:load code={codeSwept} language="javascript" />
 
     <SweptCollisionVisualizer client:visible />
 
