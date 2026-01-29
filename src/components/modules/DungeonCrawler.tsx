@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { 
   Play, Pause, RotateCcw, Eye, EyeOff, 
   Grid3X3, Footprints, ChevronRight, ChevronLeft,
-  Zap, Heart, Target, Map, StepForward, SkipForward, Square
+  Zap, Heart, Target, Map as MapIcon, StepForward, SkipForward, Square
 } from 'lucide-react';
 
 // ============ TYPES ============
@@ -914,7 +914,7 @@ export default function DungeonCrawler() {
             <span className="font-mono">{score}</span>
           </div>
           <div className="flex items-center gap-2 text-[#6c5ce7]">
-            <Map className="w-5 h-5" />
+            <MapIcon className="w-5 h-5" aria-hidden="true" />
             <span className="font-mono">Level {level}</span>
           </div>
         </div>
