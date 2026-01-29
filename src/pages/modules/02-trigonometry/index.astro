@@ -1,0 +1,365 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import Asteroids, { UnitCircleVisualizer, RotationDemo } from '../../../components/modules/Asteroids';
+
+// Code snippets
+const codeRadians = `// Why radians? Because Math.sin/cos expect them!
+const degrees = 90;
+const radians = degrees * (Math.PI / 180);  // π/2
+
+// Or going the other way
+const backToDegrees = radians * (180 / Math.PI);  // 90
+
+// Handy conversions
+const toRad = (deg) => deg * Math.PI / 180;
+const toDeg = (rad) => rad * 180 / Math.PI;`;
+
+const codeSinCos = `// The magic formula: angle → direction
+const angle = Math.PI / 4;  // 45 degrees
+
+// cos gives the X component
+const x = Math.cos(angle);  // ≈ 0.707
+
+// sin gives the Y component  
+const y = Math.sin(angle);  // ≈ 0.707
+
+// Together they form a unit vector!
+// (a vector with length 1)`;
+
+const codePolarCartesian = `// Polar coordinates: (r, θ) - distance + angle
+// Cartesian coordinates: (x, y) - horizontal + vertical
+
+// Polar → Cartesian
+function polarToCartesian(r, theta) {
+  return {
+    x: r * Math.cos(theta),
+    y: r * Math.sin(theta)
+  };
+}
+
+// Cartesian → Polar
+function cartesianToPolar(x, y) {
+  return {
+    r: Math.sqrt(x * x + y * y),
+    theta: Math.atan2(y, x)  // atan2 handles all quadrants!
+  };
+}`;
+
+const codeShipMovement = `// Ship state
+const ship = {
+  x: 400, y: 300,    // position
+  angle: 0,          // rotation in radians
+  vx: 0, vy: 0       // velocity
+};
+
+// Rotation (left/right keys)
+if (keys.left)  ship.angle -= 0.05;
+if (keys.right) ship.angle += 0.05;
+
+// Thrust (up key) - THIS IS THE KEY FORMULA!
+if (keys.up) {
+  // Convert angle to velocity vector
+  ship.vx += Math.cos(ship.angle) * thrust;
+  ship.vy += Math.sin(ship.angle) * thrust;
+}
+
+// Apply velocity to position
+ship.x += ship.vx;
+ship.y += ship.vy;`;
+
+const codeScreenWrap = `// Screen wrapping - teleport to opposite side
+function wrap(value, max) {
+  if (value < 0) return max;
+  if (value > max) return 0;
+  return value;
+}
+
+// Apply to ship position each frame
+ship.x = wrap(ship.x, screenWidth);
+ship.y = wrap(ship.y, screenHeight);
+
+// Works for asteroids and bullets too!`;
+
+const codeRotationMatrix = `// Rotate a point around the origin
+function rotatePoint(x, y, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  
+  return {
+    x: x * cos - y * sin,
+    y: x * sin + y * cos
+  };
+}
+
+// Drawing a rotated ship
+const nose = rotatePoint(0, -20, ship.angle);
+const leftWing = rotatePoint(-15, 15, ship.angle);
+const rightWing = rotatePoint(15, 15, ship.angle);`;
+---
+
+<ModuleLayout 
+  title="Trigonometry in Action"
+  moduleNumber="02"
+  projectName="Asteroids Clone"
+  prevModule={{ href: '/modules/01-vectors/', title: 'Vector Math Fundamentals' }}
+>
+  <!-- Intro -->
+  <section class="mb-16">
+    <p class="text-xl text-text-secondary mb-6">
+      Trigonometry sounds scary, but it's really just <strong class="text-white">two functions</strong>: 
+      <code class="text-[#00b894]">sin</code> and <code class="text-[#e17055]">cos</code>. 
+      Master these, and you can make anything rotate, orbit, or fly in any direction.
+    </p>
+    
+    <div class="bg-accent/10 border border-accent/30 rounded-xl p-6 mb-6">
+      <p class="text-accent font-semibold mb-2">🎯 What You'll Learn</p>
+      <ul class="list-none space-y-1 text-text-secondary">
+        <li>✓ Converting angles to movement directions</li>
+        <li>✓ Radians vs degrees (and why radians win)</li>
+        <li>✓ The unit circle - your new best friend</li>
+        <li>✓ How to make a ship fly where it's pointing</li>
+        <li>✓ Screen wrapping (Asteroids-style teleportation)</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Lesson 1: Angles -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. Angles: Radians vs Degrees</h2>
+    
+    <p class="text-text-secondary mb-4">
+      You know degrees: 360° in a circle, 90° is a right angle. But JavaScript's 
+      <code>Math.sin()</code> and <code>Math.cos()</code> use <strong class="text-white">radians</strong>.
+    </p>
+
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Why radians?</strong> Because they're based on the circle itself:
+    </p>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li>🔵 Full circle = <code class="text-accent">2π</code> radians (≈ 6.28)</li>
+      <li>🔵 Half circle = <code class="text-accent">π</code> radians (≈ 3.14)</li>
+      <li>🔵 Quarter circle = <code class="text-accent">π/2</code> radians (≈ 1.57)</li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeRadians} /></pre>
+    </div>
+
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-4">
+      <p class="text-[#e17055] font-semibold">⚠️ Common Bug</p>
+      <p class="text-text-secondary">
+        Forgetting to convert! If your rotation looks way too fast or barely moves, 
+        check if you're mixing radians and degrees.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: Sin & Cos -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Sin & Cos: The Core of Rotation</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Here's the magic: given any angle, <code class="text-[#00b894]">cos</code> tells you the 
+      <strong class="text-white">horizontal</strong> component, and <code class="text-[#e17055]">sin</code> 
+      tells you the <strong class="text-white">vertical</strong> component.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeSinCos} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-6">
+      The <strong class="text-white">unit circle</strong> visualizes this perfectly. 
+      Every point on the circle is at <code>(cos(θ), sin(θ))</code>:
+    </p>
+
+    <UnitCircleVisualizer client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-[#00b894] font-semibold">💡 Key Insight</p>
+      <p class="text-text-secondary">
+        Notice how cos and sin are always between -1 and 1. That's because they describe 
+        a point on a circle with radius 1. Multiply by any distance to scale!
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Polar ↔ Cartesian -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. Polar ↔ Cartesian Coordinates</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Two ways to describe a point:
+    </p>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li>📍 <strong class="text-white">Cartesian (x, y)</strong> - "go right 3, up 4"</li>
+      <li>📍 <strong class="text-white">Polar (r, θ)</strong> - "go 5 units at 53° angle"</li>
+    </ul>
+
+    <p class="text-text-secondary mb-4">
+      Games constantly convert between these. A ship has an <em>angle</em> (polar), 
+      but the screen uses <em>x, y</em> (Cartesian).
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codePolarCartesian} /></pre>
+    </div>
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
+      <p class="text-[#fdcb6e] font-semibold">🎯 Pro Tip: atan2</p>
+      <p class="text-text-secondary">
+        Always use <code>Math.atan2(y, x)</code> instead of <code>Math.atan(y/x)</code>. 
+        It handles all four quadrants correctly and won't divide by zero!
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: Ship Rotation & Thrust -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Ship Rotation & Thrust Vectors</h2>
+    
+    <p class="text-text-secondary mb-4">
+      This is where it all comes together. In Asteroids, the ship:
+    </p>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li>🚀 Has an angle (which way it's pointing)</li>
+      <li>🚀 Thrusts <em>forward</em> - in the direction of that angle</li>
+      <li>🚀 Has momentum - keeps drifting even after you stop thrusting</li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeShipMovement} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      The key line is <code>ship.vx += Math.cos(ship.angle) * thrust</code>. 
+      This converts the ship's angle into a velocity push!
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Rotation Matrix (Drawing the Ship)</h3>
+    
+    <p class="text-text-secondary mb-4">
+      To draw a rotated triangle, we use the <strong class="text-white">rotation matrix</strong>:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeRotationMatrix} /></pre>
+    </div>
+
+    <RotationDemo client:visible />
+  </section>
+
+  <!-- Lesson 5: Screen Wrapping -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Screen Wrapping Logic</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Classic Asteroids wraps objects around the screen. Fly off the right edge? 
+      Appear on the left. It's surprisingly simple:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeScreenWrap} /></pre>
+    </div>
+
+    <p class="text-text-secondary">
+      This creates the iconic "infinite space" feel. No walls, just endless looping.
+    </p>
+  </section>
+
+  <!-- Project: Asteroids -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">🎮 Project: Asteroids</h2>
+    
+    <p class="text-text-secondary mb-6">
+      Now let's blast some rocks! This game demonstrates everything we learned:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li>✓ Rotation using angle increments</li>
+      <li>✓ Thrust vector from <code>cos(angle)</code> / <code>sin(angle)</code></li>
+      <li>✓ Screen wrapping for ship, bullets, and asteroids</li>
+      <li>✓ Bullets fire in the direction the ship is pointing</li>
+      <li>✓ Ship drawn using rotation matrix</li>
+    </ul>
+
+    <Asteroids client:visible />
+    
+    <div class="bg-bg-card rounded-xl p-6 mt-6">
+      <p class="text-white font-semibold mb-2">🔍 Watch the math in action:</p>
+      <p class="text-text-secondary">
+        See that dashed line extending from your ship? That's the direction vector 
+        from <code>(cos(angle), sin(angle))</code>. When you thrust, you accelerate 
+        along that line. When you shoot, bullets fly that direction!
+      </p>
+    </div>
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4">💪 Challenges</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Master the basics? Try these extensions:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Hyperspace:</strong> Press a key to teleport to a random location (risky!)
+      </li>
+      <li>
+        <strong class="text-white">UFO Enemy:</strong> Add an enemy that appears and shoots at your ship
+      </li>
+      <li>
+        <strong class="text-white">Shield:</strong> Temporary invincibility with a rotating shield visual
+      </li>
+      <li>
+        <strong class="text-white">Particle Effects:</strong> Add explosion particles when asteroids are hit
+      </li>
+      <li>
+        <strong class="text-white">Sound Effects:</strong> Add pew-pew and boom sounds
+      </li>
+    </ol>
+  </section>
+
+  <!-- Summary -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4">📝 Quick Reference</h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="text-white font-semibold mb-2">Conversions</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>radians = degrees × π / 180</code></li>
+            <li><code>degrees = radians × 180 / π</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-white font-semibold mb-2">Angle → Direction</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>x = cos(angle)</code></li>
+            <li><code>y = sin(angle)</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-white font-semibold mb-2">Polar → Cartesian</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>x = r × cos(θ)</code></li>
+            <li><code>y = r × sin(θ)</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="text-white font-semibold mb-2">Cartesian → Polar</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>r = √(x² + y²)</code></li>
+            <li><code>θ = atan2(y, x)</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</ModuleLayout>
