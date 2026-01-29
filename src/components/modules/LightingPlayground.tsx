@@ -1089,9 +1089,9 @@ function ShadowMappingViz() {
   }, [lightPos]);
 
   return (
-    <div className="bg-[#1e1e2e] rounded-xl border border-[#2a2a3a] p-4">
+    <div className="bg-[#1e1e2e] rounded-xl border border-[#2a2a3a] p-4" role="region" aria-label="Shadow mapping visualization">
       <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-        <svg className="w-5 h-5 text-[#ffd43b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg className="w-5 h-5 text-[#ffd43b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
           <circle cx="12" cy="12" r="4" />
         </svg>
@@ -1103,19 +1103,26 @@ function ShadowMappingViz() {
         width={200}
         height={180}
         className="rounded-lg border border-[#2a2a3a] w-full mb-3"
+        role="img"
+        aria-label={`Shadow mapping diagram with light at position ${lightPos}`}
       />
       
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-sm text-text-secondary">Light Position</label>
+          <label htmlFor="shadow-light-pos" className="text-sm text-text-secondary">Light Position</label>
         </div>
         <input
+          id="shadow-light-pos"
           type="range"
           min="20"
           max="80"
           value={lightPos}
           onChange={(e) => setLightPos(parseInt(e.target.value))}
           className="w-full h-2 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-[#ffd43b]"
+          aria-label="Light horizontal position"
+          aria-valuemin={20}
+          aria-valuemax={80}
+          aria-valuenow={lightPos}
         />
       </div>
       
@@ -1229,7 +1236,7 @@ export default function LightingPlayground() {
         
         {/* View mode selector */}
         <div className="p-3 border-t border-[#2a2a3a] flex flex-wrap gap-2 items-center justify-between">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="View mode selection">
             {(['combined', 'ambient', 'diffuse', 'specular'] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
@@ -1239,6 +1246,8 @@ export default function LightingPlayground() {
                     ? 'bg-accent text-black'
                     : 'bg-[#2a2a3a] text-text-secondary hover:text-white'
                 }`}
+                aria-pressed={viewMode === mode}
+                aria-label={`${mode} view mode`}
               >
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}
               </button>
@@ -1252,6 +1261,7 @@ export default function LightingPlayground() {
                 checked={shadowsEnabled}
                 onChange={(e) => setShadowsEnabled(e.target.checked)}
                 className="rounded bg-[#2a2a3a] border-[#4a4a5a] text-accent focus:ring-accent"
+                aria-label="Enable shadows"
               />
               Shadows
             </label>
@@ -1261,6 +1271,7 @@ export default function LightingPlayground() {
                 checked={showLightHelpers}
                 onChange={(e) => setShowLightHelpers(e.target.checked)}
                 className="rounded bg-[#2a2a3a] border-[#4a4a5a] text-accent focus:ring-accent"
+                aria-label="Show light helpers"
               />
               Helpers
             </label>
@@ -1283,20 +1294,22 @@ export default function LightingPlayground() {
             <button
               onClick={resetScene}
               className="text-xs text-[#e17055] hover:text-[#ff6b6b] transition-colors"
+              aria-label="Reset scene to default settings"
             >
               Reset Scene
             </button>
           </div>
           
           {/* Add light buttons */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Add light controls">
             {(['ambient', 'directional', 'point', 'spot'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => addLight(type)}
                 className="px-3 py-1.5 bg-[#2a2a3a] hover:bg-[#3a3a4a] text-sm rounded-lg transition-colors flex items-center gap-1.5"
+                aria-label={`Add ${type} light`}
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <path d="M12 5v14M5 12h14" />
                 </svg>
                 {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -1335,8 +1348,8 @@ export default function LightingPlayground() {
           <div className="bg-[#1e1e2e] rounded-lg p-4 border border-[#2a2a3a] space-y-3">
             {/* Object selector */}
             <div>
-              <label className="text-sm text-text-secondary block mb-2">Object</label>
-              <div className="flex gap-2">
+              <label id="object-selector-label" className="text-sm text-text-secondary block mb-2">Object</label>
+              <div className="flex gap-2" role="group" aria-labelledby="object-selector-label">
                 {(['sphere', 'cube', 'torus'] as const).map((obj) => (
                   <button
                     key={obj}
@@ -1346,6 +1359,8 @@ export default function LightingPlayground() {
                         ? 'bg-accent text-black'
                         : 'bg-[#2a2a3a] text-text-secondary hover:text-white'
                     }`}
+                    aria-pressed={selectedObject === obj}
+                    aria-label={`Select ${obj} object`}
                   >
                     {obj.charAt(0).toUpperCase() + obj.slice(1)}
                   </button>
@@ -1355,39 +1370,47 @@ export default function LightingPlayground() {
             
             {/* Color picker */}
             <div className="flex items-center gap-3">
-              <label className="text-sm text-text-secondary w-20">Color</label>
+              <label htmlFor="material-color" className="text-sm text-text-secondary w-20">Color</label>
               <input
+                id="material-color"
                 type="color"
                 value={material.color}
                 onChange={(e) => setMaterial(prev => ({ ...prev, color: e.target.value }))}
                 className="w-10 h-8 rounded cursor-pointer bg-transparent border-0"
+                aria-label="Material color"
               />
-              <span className="text-xs font-mono text-[#6a6a7a]">{material.color}</span>
+              <span className="text-xs font-mono text-[#6a6a7a]" aria-hidden="true">{material.color}</span>
             </div>
             
             {/* Shininess */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm text-text-secondary">Shininess</label>
-                <span className="text-xs font-mono text-accent">{material.shininess}</span>
+                <label htmlFor="material-shininess" className="text-sm text-text-secondary">Shininess</label>
+                <span className="text-xs font-mono text-accent" aria-hidden="true">{material.shininess}</span>
               </div>
               <input
+                id="material-shininess"
                 type="range"
                 min="1"
                 max="256"
                 value={material.shininess}
                 onChange={(e) => setMaterial(prev => ({ ...prev, shininess: parseInt(e.target.value) }))}
                 className="w-full h-2 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-accent"
+                aria-label="Material shininess"
+                aria-valuemin={1}
+                aria-valuemax={256}
+                aria-valuenow={material.shininess}
               />
             </div>
             
             {/* Roughness */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm text-text-secondary">Roughness</label>
-                <span className="text-xs font-mono text-accent">{material.roughness.toFixed(2)}</span>
+                <label htmlFor="material-roughness" className="text-sm text-text-secondary">Roughness</label>
+                <span className="text-xs font-mono text-accent" aria-hidden="true">{material.roughness.toFixed(2)}</span>
               </div>
               <input
+                id="material-roughness"
                 type="range"
                 min="0"
                 max="1"
@@ -1395,16 +1418,21 @@ export default function LightingPlayground() {
                 value={material.roughness}
                 onChange={(e) => setMaterial(prev => ({ ...prev, roughness: parseFloat(e.target.value) }))}
                 className="w-full h-2 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-accent"
+                aria-label="Material roughness"
+                aria-valuemin={0}
+                aria-valuemax={1}
+                aria-valuenow={material.roughness}
               />
             </div>
             
             {/* Metalness */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-sm text-text-secondary">Metalness</label>
-                <span className="text-xs font-mono text-accent">{material.metalness.toFixed(2)}</span>
+                <label htmlFor="material-metalness" className="text-sm text-text-secondary">Metalness</label>
+                <span className="text-xs font-mono text-accent" aria-hidden="true">{material.metalness.toFixed(2)}</span>
               </div>
               <input
+                id="material-metalness"
                 type="range"
                 min="0"
                 max="1"
@@ -1412,6 +1440,10 @@ export default function LightingPlayground() {
                 value={material.metalness}
                 onChange={(e) => setMaterial(prev => ({ ...prev, metalness: parseFloat(e.target.value) }))}
                 className="w-full h-2 bg-[#2a2a3a] rounded-lg appearance-none cursor-pointer accent-accent"
+                aria-label="Material metalness"
+                aria-valuemin={0}
+                aria-valuemax={1}
+                aria-valuenow={material.metalness}
               />
             </div>
           </div>
