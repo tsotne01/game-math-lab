@@ -1,0 +1,733 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import CollisionOptimizer, { GridVisualizerDemo, QuadtreeVisualizerDemo, ComparisonDemo, NSquaredDemo } from '../../../components/modules/CollisionOptimizer';
+import Quiz from '../../../components/lessons/Quiz';
+
+// Code snippets
+const codeNaiveCollision = `// Naive O(N²) collision detection
+function checkAllCollisions(particles) {
+    for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+            // Check every pair!
+            if (collides(particles[i], particles[j])) {
+                resolveCollision(particles[i], particles[j]);
+            }
+        }
+    }
+}
+
+// With 1000 particles: 1000 × 999 / 2 = 499,500 checks!
+// With 2000 particles: 2000 × 1999 / 2 = 1,999,000 checks!`;
+
+const codeSpatialHash = `// Spatial hashing / grid partitioning
+const CELL_SIZE = 50; // Should be >= largest object diameter
+
+function getCellKey(x, y) {
+    const cx = Math.floor(x / CELL_SIZE);
+    const cy = Math.floor(y / CELL_SIZE);
+    return \`\${cx},\${cy}\`;
+}
+
+function insertIntoGrid(grid, particle) {
+    const key = getCellKey(particle.x, particle.y);
+    if (!grid.has(key)) {
+        grid.set(key, []);
+    }
+    grid.get(key).push(particle);
+}
+
+// Only check particles in same cell + adjacent cells
+function getNeighborCells(x, y) {
+    const cx = Math.floor(x / CELL_SIZE);
+    const cy = Math.floor(y / CELL_SIZE);
+    const cells = [];
+    
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            cells.push(\`\${cx + dx},\${cy + dy}\`);
+        }
+    }
+    return cells;
+}`;
+
+const codeQuadtreeStructure = `// Quadtree node structure
+interface QuadTreeNode {
+    // Bounding box
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    
+    // Particles in this node (only if leaf)
+    particles: Particle[];
+    
+    // Child nodes (NW, NE, SW, SE)
+    children: QuadTreeNode[] | null;
+    
+    // How deep in the tree
+    depth: number;
+}
+
+// Constants
+const MAX_PARTICLES = 4;  // Subdivide when exceeded
+const MAX_DEPTH = 8;      // Prevent infinite subdivision`;
+
+const codeQuadtreeInsert = `function insertIntoQuadTree(node, particle) {
+    // If we have children, insert into appropriate child
+    if (node.children) {
+        const midX = node.x + node.width / 2;
+        const midY = node.y + node.height / 2;
+        
+        const west = particle.x < midX;
+        const north = particle.y < midY;
+        
+        if (west && north) insert(node.children[0], particle);      // NW
+        else if (!west && north) insert(node.children[1], particle); // NE
+        else if (west && !north) insert(node.children[2], particle); // SW
+        else insert(node.children[3], particle);                      // SE
+        return;
+    }
+    
+    // Add to this node's particles
+    node.particles.push(particle);
+    
+    // Subdivide if we've exceeded capacity
+    if (node.particles.length > MAX_PARTICLES && node.depth < MAX_DEPTH) {
+        subdivide(node);
+        
+        // Move particles to children
+        for (const p of node.particles) {
+            insertIntoQuadTree(node, p);
+        }
+        node.particles = [];
+    }
+}`;
+
+const codeQuadtreeQuery = `function queryQuadTree(node, x, y, radius, results) {
+    // Check if query circle intersects this node's bounds
+    const closestX = clamp(x, node.x, node.x + node.width);
+    const closestY = clamp(y, node.y, node.y + node.height);
+    const dx = x - closestX;
+    const dy = y - closestY;
+    
+    // No intersection? Skip this entire branch!
+    if (dx * dx + dy * dy > radius * radius) {
+        return;
+    }
+    
+    // Add particles from this node
+    for (const p of node.particles) {
+        results.push(p);
+    }
+    
+    // Recursively query children
+    if (node.children) {
+        for (const child of node.children) {
+            queryQuadTree(child, x, y, radius, results);
+        }
+    }
+}
+
+// Usage: find all particles near point
+const nearby = [];
+queryQuadTree(root, mouseX, mouseY, searchRadius, nearby);`;
+
+const codeBroadNarrow = `// TWO-PHASE COLLISION DETECTION
+
+// BROAD PHASE: Quickly find POTENTIAL collisions
+// Uses spatial structure (grid, quadtree, etc.)
+function broadPhase(particles, spatialStructure) {
+    const potentialPairs = [];
+    
+    for (const p of particles) {
+        // Get nearby particles from spatial structure
+        const nearby = queryNearby(spatialStructure, p.x, p.y, p.radius * 2);
+        
+        for (const other of nearby) {
+            if (p.id < other.id) { // Avoid duplicate pairs
+                potentialPairs.push([p, other]);
+            }
+        }
+    }
+    
+    return potentialPairs; // Much smaller than N²!
+}
+
+// NARROW PHASE: Precise collision tests on candidates
+function narrowPhase(potentialPairs) {
+    const collisions = [];
+    
+    for (const [a, b] of potentialPairs) {
+        // Now do the expensive, accurate collision test
+        if (preciseCollisionTest(a, b)) {
+            collisions.push([a, b]);
+        }
+    }
+    
+    return collisions;
+}
+
+// Full collision pipeline
+function detectCollisions(particles) {
+    const candidates = broadPhase(particles, spatialStructure);
+    const collisions = narrowPhase(candidates);
+    return collisions;
+}`;
+
+const codeChoosingStructure = `// WHEN TO USE WHAT?
+
+// === SPATIAL GRID ===
+// Best when:
+// - Objects are roughly uniform size
+// - Objects are evenly distributed
+// - Simple to implement and debug
+// - Memory usage is predictable
+//
+// Complexity: O(N) insert, O(1) query per cell
+// Cell size: 2× largest object diameter
+
+// === QUADTREE ===
+// Best when:
+// - Objects cluster in some areas (uneven distribution)
+// - You need adaptive resolution
+// - Memory efficiency matters (sparse areas don't waste space)
+//
+// Complexity: O(log N) insert, O(log N + k) query
+// Where k = number of results
+
+// === OTHER OPTIONS ===
+// - BVH (Bounding Volume Hierarchy): Best for static geometry
+// - R-Tree: Good for database-style spatial queries
+// - Sweep & Prune: Good for many moving objects
+// - Octree: 3D version of quadtree
+
+// RULE OF THUMB:
+// < 100 objects?  → Naive might be fine
+// 100-1000 objects, uniform? → Grid
+// 1000+ objects, clustered? → Quadtree`;
+
+// Quiz questions
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'With 1000 particles, how many collision checks does the naive O(N²) approach require per frame?',
+    options: [
+      '1,000',
+      '10,000',
+      '499,500',
+      '1,000,000'
+    ],
+    correctIndex: 2,
+    explanation: 'The formula is N × (N-1) / 2. With 1000 particles: 1000 × 999 / 2 = 499,500 checks. We divide by 2 because we only check each pair once (A-B is the same as B-A).'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In spatial grid partitioning, what determines the optimal cell size?',
+    options: [
+      'The screen resolution',
+      'The number of particles',
+      'The size of the largest object',
+      'The frame rate target'
+    ],
+    correctIndex: 2,
+    explanation: 'Cell size should be at least as large as the largest object (typically 2× diameter). If cells are too small, objects span multiple cells. If too large, you lose the benefit of spatial partitioning.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'When checking for collisions with a grid, which cells must be examined?',
+    options: [
+      'Only the cell containing the object',
+      'The containing cell plus 8 adjacent cells (3×3)',
+      'All cells in the grid',
+      'Random cells based on hash function'
+    ],
+    correctIndex: 1,
+    explanation: 'You must check the 3×3 neighborhood (9 cells total) because an object near a cell boundary could collide with objects in adjacent cells. This is why cell size matters!'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the quadtree subdivision check:',
+    codeTemplate: 'if (node.particles.length > MAX_PARTICLES && node.___ < MAX_DEPTH) {\n    subdivide(node);\n}',
+    answers: ['depth'],
+    explanation: 'We check the node\'s DEPTH to prevent infinite subdivision. Without a depth limit, the tree could subdivide forever if particles are very close together.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is the main advantage of a quadtree over a uniform grid?',
+    options: [
+      'Quadtrees are always faster',
+      'Quadtrees adapt to non-uniform particle distribution',
+      'Quadtrees use less memory overall',
+      'Quadtrees are easier to implement'
+    ],
+    correctIndex: 1,
+    explanation: 'Quadtrees subdivide more in dense areas and less in sparse areas. This makes them efficient when objects cluster together. Grids waste cells in empty areas and may have overcrowded cells in dense areas.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In the two-phase collision system, what does the "broad phase" do?',
+    options: [
+      'Performs precise collision detection',
+      'Resolves collisions with physics',
+      'Quickly identifies potential collision pairs',
+      'Renders debug visualization'
+    ],
+    correctIndex: 2,
+    explanation: 'Broad phase uses cheap tests (spatial queries) to find POTENTIAL collisions. This drastically reduces the number of pairs that need expensive narrow phase testing.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'When querying a quadtree, why can we skip entire branches?',
+    options: [
+      'Branches are always empty',
+      'If the query region doesn\'t intersect the node bounds, no children can either',
+      'We randomly skip branches for performance',
+      'Branches only contain static objects'
+    ],
+    correctIndex: 1,
+    explanation: 'This is the key insight! If a query circle doesn\'t intersect a node\'s bounding box, it can\'t intersect any children either. We can skip entire subtrees, making queries O(log N) instead of O(N).'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the grid cell key calculation:',
+    codeTemplate: 'function getCellKey(x, y, cellSize) {\n    const cx = Math.___(x / cellSize);\n    const cy = Math.floor(y / cellSize);\n    return `${cx},${cy}`;\n}',
+    answers: ['floor'],
+    explanation: 'We use Math.floor() to convert continuous coordinates into discrete cell indices. This ensures each position maps to exactly one cell, regardless of floating-point values.'
+  }
+];
+---
+
+<ModuleLayout 
+  title="Spatial Partitioning"
+  moduleNumber="08"
+  projectName="Collision Optimizer"
+  prevModule={{ href: '/modules/07-pathfinding/', title: 'Pathfinding' }}
+  nextModule={{ href: '/modules/09-interpolation/', title: 'Interpolation' }}
+>
+  <!-- Lesson 1: The N² Problem -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. The N² Problem</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Collision detection</strong> is essential for games, but it has a hidden cost. 
+      If you check every object against every other object, the number of checks grows <em>quadratically</em>.
+    </p>
+    
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-6 mb-6 text-center">
+      <code class="text-lg text-[#e17055] font-bold">Checks = N × (N - 1) / 2</code>
+      <p class="text-sm text-text-secondary mt-2">With 1000 objects: <strong class="text-white">499,500 checks per frame</strong></p>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeNaiveCollision} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      See how quickly the checks explode:
+    </p>
+
+    <NSquaredDemo client:visible />
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#fdcb6e]">The Problem:</strong> Most of these checks are wasted! 
+        Objects far apart can't possibly collide. We need a way to only check <em>nearby</em> objects.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: Spatial Hashing / Grid Partitioning -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Spatial Hashing (Grid Partitioning)</h2>
+    
+    <p class="text-text-secondary mb-4">
+      The simplest optimization: <strong class="text-white">divide space into a grid</strong>. 
+      Objects can only collide with others in the same cell or adjacent cells.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+          Step 1: Build Grid
+        </h3>
+        <p class="text-sm text-text-secondary">Hash each object's position to a cell key</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          Step 2: Query
+        </h3>
+        <p class="text-sm text-text-secondary">For each object, check only 3×3 neighborhood</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#fdcb6e]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#fdcb6e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Result
+        </h3>
+        <p class="text-sm text-text-secondary">From O(N²) to roughly O(N) checks!</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeSpatialHash} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Try it! Move your mouse over the grid to see which cells get checked:
+    </p>
+
+    <GridVisualizerDemo client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#00b894]">Key Insight:</strong> We check 9 cells maximum per object, regardless of total object count. 
+        That's a massive improvement over checking ALL other objects!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Quadtrees -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. Quadtrees: Recursive Spatial Division</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Grids work great when objects are evenly distributed. But what if they cluster? 
+      <strong class="text-white">Quadtrees</strong> adapt by subdividing only where needed.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeQuadtreeStructure} /></pre>
+    </div>
+
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Root node</strong> covers the entire space</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">When a node gets too crowded</strong>, it splits into 4 children (NW, NE, SW, SE)</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Empty/sparse areas</strong> stay as large nodes (no wasted subdivision)</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Dense areas</strong> subdivide deeply for precision</span>
+      </li>
+    </ul>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span><strong class="text-[#6c5ce7]">Why "Quad"?</strong> Each node has 4 children (quadrants). 
+        In 3D, this becomes an <strong>Octree</strong> with 8 children.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: Building a Quadtree -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Building a Quadtree</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Inserting particles into a quadtree is recursive: find the right quadrant, insert there, 
+      and subdivide if the node gets too full.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeQuadtreeInsert} /></pre>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          Subdivision Logic
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Find midpoint of node bounds</li>
+          <li>• Compare particle position to midpoint</li>
+          <li>• Route to correct quadrant (NW/NE/SW/SE)</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          Depth Limit
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li>• Prevents infinite subdivision</li>
+          <li>• Handles overlapping particles</li>
+          <li>• Typical max depth: 8-12 levels</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Click to add particles and watch the tree subdivide:
+    </p>
+
+    <QuadtreeVisualizerDemo client:visible />
+  </section>
+
+  <!-- Lesson 5: Querying a Quadtree -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Querying a Quadtree</h2>
+    
+    <p class="text-text-secondary mb-4">
+      The magic of quadtrees is in <strong class="text-white">efficient querying</strong>. 
+      We can skip entire branches that don't intersect our search region!
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeQuadtreeQuery} /></pre>
+    </div>
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-6 mb-6">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Why This Is Fast
+      </h3>
+      <ul class="text-sm text-text-secondary space-y-2">
+        <li class="flex items-start gap-2">
+          <span class="text-[#00b894] font-bold">1.</span>
+          <span>If query circle doesn't touch a node's bounds, skip it AND all its children</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[#00b894] font-bold">2.</span>
+          <span>This "pruning" eliminates large portions of the tree instantly</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-[#00b894] font-bold">3.</span>
+          <span>Average query time: O(log N + k) where k = results found</span>
+        </li>
+      </ul>
+    </div>
+
+    <p class="text-text-secondary">
+      In the demo above, notice how only the highlighted nodes (those intersecting the yellow circle) are searched. 
+      Large empty regions are skipped entirely!
+    </p>
+  </section>
+
+  <!-- Lesson 6: Broad Phase vs Narrow Phase -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">6. Broad Phase vs Narrow Phase</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Professional game engines use a <strong class="text-white">two-phase approach</strong>:
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3"/><path d="M12 8v8"/><path d="m8 12 8 0"/></svg>
+          Broad Phase
+        </h3>
+        <p class="text-sm text-text-secondary mb-2">Fast, cheap tests using bounding boxes or spatial structures</p>
+        <ul class="text-xs text-text-secondary space-y-1">
+          <li>• AABB overlap tests</li>
+          <li>• Spatial hash queries</li>
+          <li>• Quadtree/BVH queries</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          Narrow Phase
+        </h3>
+        <p class="text-sm text-text-secondary mb-2">Precise, expensive tests only on candidates</p>
+        <ul class="text-xs text-text-secondary space-y-1">
+          <li>• Circle-circle intersection</li>
+          <li>• Polygon SAT tests</li>
+          <li>• GJK algorithm</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeBroadNarrow} /></pre>
+    </div>
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#fdcb6e]">Real-World Example:</strong> If you have 1000 objects with complex polygon shapes, 
+        broad phase might find 50 potential pairs. You only do 50 expensive polygon tests instead of 499,500!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 7: Choosing the Right Structure -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">7. Choosing the Right Structure</h2>
+    
+    <p class="text-text-secondary mb-4">
+      There's no "best" spatial structure — it depends on your game's characteristics:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeChoosingStructure} /></pre>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-[#6c5ce7] mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+          Spatial Grid
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Simple to implement</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> O(1) cell lookup</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Great for uniform distribution</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Fixed memory cost</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Poor for clustering</li>
+        </ul>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-[#00b894] mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+          Quadtree
+        </h3>
+        <ul class="text-sm text-text-secondary space-y-1">
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Adapts to distribution</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Memory efficient</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Great for clustering</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> More complex code</li>
+          <li class="flex items-center gap-2"><svg class="w-3 h-3 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Rebuild cost each frame</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Compare the performance difference yourself:
+    </p>
+
+    <ComparisonDemo client:visible />
+  </section>
+
+  <!-- Project: Collision Optimizer -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Collision Optimizer
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Experience the difference yourself! Toggle between methods and watch the FPS and collision check counts:
+    </p>
+
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">500-2000 particles</strong> — stress test with particle count slider</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Three methods</strong> — No optimization, Grid, Quadtree</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Real-time stats</strong> — FPS, collision checks, savings percentage</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Structure visualization</strong> — See grid cells and quadtree nodes</span>
+      </li>
+    </ul>
+
+    <CollisionOptimizer client:visible />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Object Pooling:</strong> Instead of rebuilding the grid/tree each frame, update incrementally when objects move
+      </li>
+      <li>
+        <strong class="text-white">Variable Sizes:</strong> Handle objects of different sizes (hint: store in multiple cells or use loose quadtrees)
+      </li>
+      <li>
+        <strong class="text-white">3D Extension:</strong> Implement an octree for 3D collision detection
+      </li>
+      <li>
+        <strong class="text-white">Ray Casting:</strong> Use the quadtree to accelerate ray-object intersection tests
+      </li>
+      <li>
+        <strong class="text-white">Sweep & Prune:</strong> Implement this alternative algorithm and compare performance
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formula Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+      Quick Reference
+    </h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">Complexity</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#e17055]">Naive</code> — O(N²) checks</li>
+            <li><code class="text-[#6c5ce7]">Grid</code> — O(N) average</li>
+            <li><code class="text-[#00b894]">Quadtree</code> — O(N log N)</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Grid Cell Size</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>Minimum: largest object diameter</li>
+            <li>Recommended: 2× largest diameter</li>
+            <li>Check 3×3 neighborhood</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Quadtree Parameters</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>MAX_PARTICLES: 4-8 typical</li>
+            <li>MAX_DEPTH: 8-12 typical</li>
+            <li>Rebuild each frame (dynamic)</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Two-Phase Pipeline</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>Broad</code> — Fast, cheap tests</li>
+            <li><code>Narrow</code> — Precise collision</li>
+            <li><code>Response</code> — Physics resolution</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of spatial partitioning! Use number keys 1-4 to select answers.
+    </p>
+    <Quiz 
+      client:visible 
+      title="Spatial Partitioning Quiz" 
+      questions={quizQuestions} 
+    />
+  </section>
+</ModuleLayout>
