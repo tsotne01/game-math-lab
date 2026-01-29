@@ -890,7 +890,7 @@ export function CameraInterpolation() {
   const [t, setT] = useState(0);
   const [easing, setEasing] = useState<'linear' | 'easeInOut' | 'easeIn' | 'easeOut'>('easeInOut');
   const [playing, setPlaying] = useState(false);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   
   useEffect(() => {
     if (playing) {
@@ -1029,7 +1029,7 @@ export function DollyZoom() {
   const [t, setT] = useState(0.5);
   const [playing, setPlaying] = useState(false);
   const [direction, setDirection] = useState(1);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   
   // Calculate FOV and distance to keep subject same size
   // subjectHeight / distance = 2 * tan(fov/2)
