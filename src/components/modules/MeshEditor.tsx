@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useCallback, useEffect, Suspense } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Html, Line, TransformControls } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 
 // ============================================================================
@@ -534,7 +534,22 @@ function Scene({ children }: { children: React.ReactNode }) {
       <gridHelper args={[10, 10, '#333', '#222']} />
       <axesHelper args={[3]} />
       {children}
-      <OrbitControls enableDamping dampingFactor={0.05} />
+      <OrbitControls 
+        enableDamping 
+        dampingFactor={0.05}
+        // Touch controls
+        enablePan={true}
+        enableZoom={true}
+        enableRotate={true}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN
+        }}
+        // Performance
+        maxPolarAngle={Math.PI}
+        minDistance={1}
+        maxDistance={20}
+      />
     </>
   );
 }
@@ -638,7 +653,7 @@ export default function MeshEditor() {
 
       <div className="flex flex-col lg:flex-row">
         {/* 3D Viewport */}
-        <div className="flex-1 h-[500px] bg-[#0a0a0f]">
+        <div className="flex-1 h-[350px] sm:h-[400px] lg:h-[500px] bg-[#0a0a0f] touch-none">
           <Canvas camera={{ position: [3, 3, 3], fov: 50 }}>
             <Suspense fallback={<LoadingFallback />}>
               <Scene>
@@ -695,13 +710,17 @@ export default function MeshEditor() {
                   checked={showNormals}
                   onChange={(e) => setShowNormals(e.target.checked)}
                   className="w-4 h-4 rounded border-border bg-bg-card accent-accent"
+                  aria-describedby="normals-desc"
                 />
                 <span className="text-sm text-text-secondary">Show Normals</span>
               </label>
               {showNormals && (
                 <div className="ml-7">
-                  <label className="text-xs text-text-secondary">Normal Length</label>
+                  <label htmlFor="normal-length" className="text-xs text-text-secondary block mb-1">
+                    Normal Length: {normalLength.toFixed(1)}
+                  </label>
                   <input
+                    id="normal-length"
                     type="range"
                     min="0.1"
                     max="1"
@@ -709,6 +728,9 @@ export default function MeshEditor() {
                     value={normalLength}
                     onChange={(e) => setNormalLength(parseFloat(e.target.value))}
                     className="w-full accent-accent"
+                    aria-valuemin={0.1}
+                    aria-valuemax={1}
+                    aria-valuenow={normalLength}
                   />
                 </div>
               )}
@@ -718,6 +740,7 @@ export default function MeshEditor() {
                   checked={showUVs}
                   onChange={(e) => setShowUVs(e.target.checked)}
                   className="w-4 h-4 rounded border-border bg-bg-card accent-accent"
+                  aria-describedby="uv-desc"
                 />
                 <span className="text-sm text-text-secondary">Show UV Map</span>
               </label>
@@ -727,14 +750,56 @@ export default function MeshEditor() {
                   checked={editMode}
                   onChange={(e) => setEditMode(e.target.checked)}
                   className="w-4 h-4 rounded border-border bg-bg-card accent-accent"
+                  aria-describedby="edit-desc"
                 />
                 <span className="text-sm text-text-secondary">Edit Mode (hover faces)</span>
               </label>
             </div>
-          </div>
+          </fieldset>
 
           {/* UV Visualization */}
           {showUVs && <UVVisualizer geometry={geometry} />}
+
+          {/* Selected Vertex Info */}
+          {selectedVertex !== null && showVertices && (
+            <div className="bg-bg-secondary rounded-lg p-4 border border-[#ff6b6b]" role="region" aria-live="polite" aria-label="Selected vertex information">
+              <h4 className="text-sm font-bold text-[#ff6b6b] mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1"/></svg>
+                Vertex {selectedVertex}
+              </h4>
+              <div className="space-y-2 text-sm font-mono">
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Position:</span>
+                  <span className="text-white text-xs">
+                    [{meshData.vertices[selectedVertex]?.position.map(v => v.toFixed(2)).join(', ')}]
+                  </span>
+                </div>
+                {meshData.vertices[selectedVertex]?.normal && (
+                  <div className="flex justify-between">
+                    <span className="text-text-secondary">Normal:</span>
+                    <span className="text-white text-xs">
+                      [{meshData.vertices[selectedVertex].normal!.map(v => v.toFixed(2)).join(', ')}]
+                    </span>
+                  </div>
+                )}
+                {meshData.vertices[selectedVertex]?.uv && (
+                  <div className="flex justify-between">
+                    <span className="text-text-secondary">UV:</span>
+                    <span className="text-white text-xs">
+                      [{meshData.vertices[selectedVertex].uv!.map(v => v.toFixed(2)).join(', ')}]
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button 
+                onClick={() => setSelectedVertex(null)} 
+                className="mt-3 text-xs text-text-secondary hover:text-white transition-colors"
+                aria-label="Deselect vertex"
+              >
+                Click to deselect
+              </button>
+            </div>
+          )}
 
           {/* Mesh Info */}
           <MeshInfo geometry={geometry} meshData={meshData} />
@@ -742,9 +807,10 @@ export default function MeshEditor() {
           {/* Export */}
           <button
             onClick={handleExport}
+            aria-label={`Export ${primitive} mesh as JSON file`}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent text-black rounded-lg font-medium hover:bg-accent/90 transition-colors"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <svg className="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             Export as JSON
           </button>
         </div>
@@ -775,20 +841,24 @@ export function VertexVisualizer() {
   }, [geometry]);
 
   return (
-    <div className="bg-bg-card rounded-xl border border-border overflow-hidden">
+    <div className="bg-bg-card rounded-xl border border-border overflow-hidden" role="application" aria-label="Vertex visualizer demo">
       <div className="p-4 border-b border-border bg-bg-secondary">
-        <div className="flex items-center gap-4">
-          <label className="text-sm text-text-secondary">
-            Subdivisions:
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="text-sm text-text-secondary flex items-center gap-2">
+            <span>Subdivisions:</span>
             <input
               type="range"
               min="1"
               max="4"
               value={segments}
               onChange={(e) => setSegments(parseInt(e.target.value))}
-              className="ml-2 accent-accent"
+              className="accent-accent"
+              aria-label={`Subdivisions: ${segments}`}
+              aria-valuemin={1}
+              aria-valuemax={4}
+              aria-valuenow={segments}
             />
-            <span className="ml-2 text-accent font-mono">{segments}</span>
+            <span className="text-accent font-mono w-4">{segments}</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -796,15 +866,16 @@ export function VertexVisualizer() {
               checked={showIndices}
               onChange={(e) => setShowIndices(e.target.checked)}
               className="w-4 h-4 accent-accent"
+              aria-label="Show vertex indices"
             />
             <span className="text-sm text-text-secondary">Show Indices</span>
           </label>
-          <span className="text-sm text-text-secondary ml-auto">
+          <span className="text-sm text-text-secondary ml-auto" aria-live="polite">
             Vertices: <span className="text-accent font-mono">{vertexPositions.length}</span>
           </span>
         </div>
       </div>
-      <div className="h-[400px] bg-[#0a0a0f]">
+      <div className="h-[300px] sm:h-[400px] bg-[#0a0a0f] touch-none">
         <Canvas camera={{ position: [4, 4, 4], fov: 50 }}>
           <Suspense fallback={<LoadingFallback />}>
             <Scene>
@@ -883,18 +954,20 @@ export function NormalVisualizer() {
   }, [geometry]);
 
   return (
-    <div className="bg-bg-card rounded-xl border border-border overflow-hidden">
+    <div className="bg-bg-card rounded-xl border border-border overflow-hidden" role="application" aria-label="Normal visualizer demo">
       <div className="p-4 border-b border-border bg-bg-secondary">
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2" role="group" aria-label="Shading type selection">
             <button
               onClick={() => setNormalType('flat')}
+              aria-pressed={normalType === 'flat'}
               className={`px-3 py-1.5 rounded text-sm ${normalType === 'flat' ? 'bg-accent text-black' : 'bg-bg-card text-text-secondary border border-border'}`}
             >
               Flat Shading
             </button>
             <button
               onClick={() => setNormalType('smooth')}
+              aria-pressed={normalType === 'smooth'}
               className={`px-3 py-1.5 rounded text-sm ${normalType === 'smooth' ? 'bg-accent text-black' : 'bg-bg-card text-text-secondary border border-border'}`}
             >
               Smooth Shading
@@ -906,12 +979,13 @@ export function NormalVisualizer() {
               checked={showFaceNormals}
               onChange={(e) => setShowFaceNormals(e.target.checked)}
               className="w-4 h-4 accent-accent"
+              aria-label="Show normal arrows"
             />
             <span className="text-sm text-text-secondary">Show Normals</span>
           </label>
         </div>
       </div>
-      <div className="h-[400px] bg-[#0a0a0f]">
+      <div className="h-[300px] sm:h-[400px] bg-[#0a0a0f] touch-none">
         <Canvas camera={{ position: [3, 3, 3], fov: 50 }}>
           <Suspense fallback={<LoadingFallback />}>
             <ambientLight intensity={0.3} />
@@ -931,7 +1005,14 @@ export function NormalVisualizer() {
               />
             ))}
             <gridHelper args={[10, 10, '#333', '#222']} />
-            <OrbitControls enableDamping dampingFactor={0.05} />
+            <OrbitControls 
+              enableDamping 
+              dampingFactor={0.05}
+              touches={{
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+              }}
+            />
           </Suspense>
         </Canvas>
       </div>
@@ -1001,14 +1082,15 @@ export function UVMappingDemo() {
   }, []);
 
   return (
-    <div className="bg-bg-card rounded-xl border border-border overflow-hidden">
+    <div className="bg-bg-card rounded-xl border border-border overflow-hidden" role="application" aria-label="UV mapping demo">
       <div className="p-4 border-b border-border bg-bg-secondary">
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2" role="group" aria-label="Shape selection">
             {(['cube', 'sphere', 'cylinder'] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => setPrimitive(p)}
+                aria-pressed={primitive === p}
                 className={`px-3 py-1.5 rounded text-sm capitalize ${primitive === p ? 'bg-accent text-black' : 'bg-bg-card text-text-secondary border border-border'}`}
               >
                 {p}
@@ -1021,13 +1103,14 @@ export function UVMappingDemo() {
               checked={showTexture}
               onChange={(e) => setShowTexture(e.target.checked)}
               className="w-4 h-4 accent-accent"
+              aria-label="Show checkerboard texture"
             />
             <span className="text-sm text-text-secondary">Show Texture</span>
           </label>
         </div>
       </div>
       <div className="flex flex-col md:flex-row">
-        <div className="flex-1 h-[400px] bg-[#0a0a0f]">
+        <div className="flex-1 h-[300px] sm:h-[400px] bg-[#0a0a0f] touch-none">
           <Canvas camera={{ position: [3, 3, 3], fov: 50 }}>
             <Suspense fallback={<LoadingFallback />}>
               <ambientLight intensity={0.5} />
@@ -1040,7 +1123,14 @@ export function UVMappingDemo() {
                 )}
               </mesh>
               <gridHelper args={[10, 10, '#333', '#222']} />
-              <OrbitControls enableDamping dampingFactor={0.05} />
+              <OrbitControls 
+                enableDamping 
+                dampingFactor={0.05}
+                touches={{
+                  ONE: THREE.TOUCH.ROTATE,
+                  TWO: THREE.TOUCH.DOLLY_PAN
+                }}
+              />
             </Suspense>
           </Canvas>
         </div>
@@ -1087,28 +1177,29 @@ export function ProceduralShapeBuilder() {
   const triangleCount = geometry.getIndex() ? geometry.getIndex()!.count / 3 : vertexCount / 3;
 
   return (
-    <div className="bg-bg-card rounded-xl border border-border overflow-hidden">
+    <div className="bg-bg-card rounded-xl border border-border overflow-hidden" role="application" aria-label="Procedural shape builder">
       <div className="p-4 border-b border-border bg-bg-secondary">
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2" role="group" aria-label="Shape type selection">
             {(['box', 'sphere', 'torus'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setShapeType(s)}
+                aria-pressed={shapeType === s}
                 className={`px-3 py-1.5 rounded text-sm capitalize ${shapeType === s ? 'bg-accent text-black' : 'bg-bg-card text-text-secondary border border-border'}`}
               >
                 {s}
               </button>
             ))}
           </div>
-          <div className="ml-auto text-sm text-text-secondary">
+          <div className="ml-auto text-sm text-text-secondary" aria-live="polite">
             <span className="text-accent font-mono">{vertexCount}</span> vertices, 
             <span className="text-accent font-mono ml-1">{Math.floor(triangleCount)}</span> triangles
           </div>
         </div>
       </div>
       <div className="flex flex-col lg:flex-row">
-        <div className="flex-1 h-[400px] bg-[#0a0a0f]">
+        <div className="flex-1 h-[300px] sm:h-[400px] bg-[#0a0a0f] touch-none">
           <Canvas camera={{ position: [3, 3, 3], fov: 50 }}>
             <Suspense fallback={<LoadingFallback />}>
               <ambientLight intensity={0.4} />
@@ -1121,7 +1212,14 @@ export function ProceduralShapeBuilder() {
                 <lineBasicMaterial color="#00b894" transparent opacity={0.5} />
               </lineSegments>
               <gridHelper args={[10, 10, '#333', '#222']} />
-              <OrbitControls enableDamping dampingFactor={0.05} />
+              <OrbitControls 
+                enableDamping 
+                dampingFactor={0.05}
+                touches={{
+                  ONE: THREE.TOUCH.ROTATE,
+                  TWO: THREE.TOUCH.DOLLY_PAN
+                }}
+              />
             </Suspense>
           </Canvas>
         </div>
@@ -1226,22 +1324,23 @@ export function MeshDeformationDemo() {
   const [animate, setAnimate] = useState(true);
 
   return (
-    <div className="bg-bg-card rounded-xl border border-border overflow-hidden">
+    <div className="bg-bg-card rounded-xl border border-border overflow-hidden" role="application" aria-label="Mesh deformation demo">
       <div className="p-4 border-b border-border bg-bg-secondary">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2" role="group" aria-label="Deformation type selection">
             {(['wave', 'twist', 'bulge'] as const).map((d) => (
               <button
                 key={d}
                 onClick={() => setDeformType(d)}
+                aria-pressed={deformType === d}
                 className={`px-3 py-1.5 rounded text-sm capitalize ${deformType === d ? 'bg-accent text-black' : 'bg-bg-card text-text-secondary border border-border'}`}
               >
                 {d}
               </button>
             ))}
           </div>
-          <label className="text-sm text-text-secondary">
-            Intensity:
+          <label className="text-sm text-text-secondary flex items-center gap-2">
+            <span>Intensity:</span>
             <input
               type="range"
               min="0"
@@ -1249,8 +1348,13 @@ export function MeshDeformationDemo() {
               step="0.1"
               value={intensity}
               onChange={(e) => setIntensity(parseFloat(e.target.value))}
-              className="ml-2 accent-accent"
+              className="accent-accent"
+              aria-label={`Deformation intensity: ${intensity.toFixed(1)}`}
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={intensity}
             />
+            <span className="text-accent font-mono w-6">{intensity.toFixed(1)}</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -1258,19 +1362,27 @@ export function MeshDeformationDemo() {
               checked={animate}
               onChange={(e) => setAnimate(e.target.checked)}
               className="w-4 h-4 accent-accent"
+              aria-label="Toggle animation"
             />
             <span className="text-sm text-text-secondary">Animate</span>
           </label>
         </div>
       </div>
-      <div className="h-[400px] bg-[#0a0a0f]">
+      <div className="h-[300px] sm:h-[400px] bg-[#0a0a0f] touch-none">
         <Canvas camera={{ position: [3, 3, 3], fov: 50 }}>
           <Suspense fallback={<LoadingFallback />}>
             <ambientLight intensity={0.4} />
             <directionalLight position={[5, 5, 5]} intensity={1} />
             <DeformableMesh deformType={deformType} intensity={intensity} animate={animate} />
             <gridHelper args={[10, 10, '#333', '#222']} />
-            <OrbitControls enableDamping dampingFactor={0.05} />
+            <OrbitControls 
+              enableDamping 
+              dampingFactor={0.05}
+              touches={{
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+              }}
+            />
           </Suspense>
         </Canvas>
       </div>

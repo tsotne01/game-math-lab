@@ -148,6 +148,15 @@ const modules = [
     ready: true
   },
   {
+    number: '17',
+    title: 'Camera Systems',
+    project: 'Camera Controller',
+    topics: 'Orbit, FPS, Follow, Cinematic',
+    difficulty: 'hard',
+    href: '/modules/17-cameras/',
+    ready: true
+  },
+  {
     number: '18',
     title: '3D Physics',
     project: 'Physics Sandbox',
@@ -276,7 +285,7 @@ const difficultyDotColors = {
       </div>
       
       <p class="text-text-secondary" id="progress-text">
-        0 / 18 modules completed
+        0 / 19 modules completed
       </p>
     </div>
   </section>
@@ -292,7 +301,7 @@ const difficultyDotColors = {
   function updateProgressUI() {
     const progress = getProgress();
     const completed = progress.completed.length;
-    const total = 18;
+    const total = 19;
     const percentage = (completed / total) * 100;
 
     const bar = document.getElementById('progress-bar');
