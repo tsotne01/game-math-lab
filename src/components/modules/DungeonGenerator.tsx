@@ -1229,12 +1229,28 @@ export default function DungeonGenerator() {
 // ============ NOISE VISUALIZER DEMO ============
 export function NoiseVisualizerDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [seed, setSeed] = useState(42);
   const [frequency, setFrequency] = useState(0.05);
   const [octaves, setOctaves] = useState(4);
   const [lacunarity, setLacunarity] = useState(2);
   const [persistence, setPersistence] = useState(0.5);
   const [viewMode, setViewMode] = useState<'1d' | '2d'>('2d');
+  const [canvasSize, setCanvasSize] = useState({ width: 400, height: 200 });
+
+  // Responsive canvas sizing
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 32;
+        const width = Math.max(280, Math.min(containerWidth, 500));
+        setCanvasSize({ width, height: width * 0.5 });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1300,62 +1316,78 @@ export function NoiseVisualizerDemo() {
       ctx.setLineDash([]);
     }
     
-  }, [seed, frequency, octaves, lacunarity, persistence, viewMode]);
+  }, [seed, frequency, octaves, lacunarity, persistence, viewMode, canvasSize]);
 
   return (
-    <div className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
+    <div ref={containerRef} className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
       <div className="p-4 border-b border-[#2a2a3a]">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" role="group" aria-label="View mode">
             <button
               onClick={() => setViewMode('1d')}
-              className={`px-3 py-1 rounded ${viewMode === '1d' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400'}`}
+              className={`px-3 py-1 rounded transition-colors ${viewMode === '1d' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 hover:text-white'}`}
+              aria-pressed={viewMode === '1d'}
+              aria-label="1D wave view"
             >
               1D
             </button>
             <button
               onClick={() => setViewMode('2d')}
-              className={`px-3 py-1 rounded ${viewMode === '2d' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400'}`}
+              className={`px-3 py-1 rounded transition-colors ${viewMode === '2d' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 hover:text-white'}`}
+              aria-pressed={viewMode === '2d'}
+              aria-label="2D texture view"
             >
               2D
             </button>
           </div>
           
           <div className="flex items-center gap-2">
-            <label className="text-gray-400">Seed:</label>
+            <label htmlFor="noise-seed" className="text-gray-400">Seed:</label>
             <input
+              id="noise-seed"
               type="number"
               value={seed}
               onChange={(e) => setSeed(Number(e.target.value))}
-              className="bg-[#1a1a24] text-white px-2 py-1 rounded border border-[#3a3a4a] w-20"
+              aria-label="Random seed"
+              className="bg-[#1a1a24] text-white px-2 py-1 rounded border border-[#3a3a4a] focus:border-[#6c5ce7] focus:ring-1 focus:ring-[#6c5ce7] outline-none w-20"
             />
           </div>
           
           <div className="flex items-center gap-2">
-            <label className="text-gray-400">Frequency:</label>
+            <label htmlFor="noise-freq" className="text-gray-400">Frequency:</label>
             <input
+              id="noise-freq"
               type="range"
               min="0.01"
               max="0.2"
               step="0.01"
               value={frequency}
               onChange={(e) => setFrequency(Number(e.target.value))}
+              aria-label="Noise frequency"
+              aria-valuemin={0.01}
+              aria-valuemax={0.2}
+              aria-valuenow={frequency}
               className="w-20 accent-[#6c5ce7]"
             />
-            <span className="text-gray-400 w-10">{frequency.toFixed(2)}</span>
+            <span className="text-gray-400 w-10" aria-hidden="true">{frequency.toFixed(2)}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <label className="text-gray-400">Octaves:</label>
+            <label htmlFor="noise-octaves" className="text-gray-400">Octaves:</label>
             <input
+              id="noise-octaves"
               type="range"
               min="1"
               max="8"
               value={octaves}
               onChange={(e) => setOctaves(Number(e.target.value))}
+              aria-label="Number of octaves"
+              aria-valuemin={1}
+              aria-valuemax={8}
+              aria-valuenow={octaves}
               className="w-16 accent-[#6c5ce7]"
             />
-            <span className="text-gray-400 w-4">{octaves}</span>
+            <span className="text-gray-400 w-4" aria-hidden="true">{octaves}</span>
           </div>
         </div>
       </div>
@@ -1363,9 +1395,11 @@ export function NoiseVisualizerDemo() {
       <div className="flex justify-center p-4 bg-[#0a0a0f]">
         <canvas
           ref={canvasRef}
-          width={400}
-          height={200}
-          className="border border-[#2a2a3a] rounded"
+          width={canvasSize.width}
+          height={canvasSize.height}
+          className="border border-[#2a2a3a] rounded max-w-full"
+          role="img"
+          aria-label={`Perlin noise visualization in ${viewMode} mode`}
         />
       </div>
     </div>
@@ -1375,14 +1409,30 @@ export function NoiseVisualizerDemo() {
 // ============ BSP TREE VISUALIZER ============
 export function BSPTreeDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [seed, setSeed] = useState('bsp123');
   const [depth, setDepth] = useState(0);
   const [maxDepth, setMaxDepth] = useState(4);
   const [showRooms, setShowRooms] = useState(false);
   const [splits, setSplits] = useState<BSPNode[]>([]);
+  const [canvasSize, setCanvasSize] = useState({ width: 400, height: 300 });
 
-  const width = 400;
-  const height = 300;
+  // Responsive canvas sizing
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 32;
+        const w = Math.max(280, Math.min(containerWidth, 500));
+        setCanvasSize({ width: w, height: w * 0.75 });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  const width = canvasSize.width;
+  const height = canvasSize.height;
 
   useEffect(() => {
     const rng = new SeededRandom(seed);
@@ -1515,25 +1565,31 @@ export function BSPTreeDemo() {
   }, [splits, depth, showRooms, seed]);
 
   return (
-    <div className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
+    <div ref={containerRef} className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
       <div className="p-4 border-b border-[#2a2a3a]">
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <label className="text-gray-400">Split Depth:</label>
+            <label htmlFor="bsp-depth" className="text-gray-400">Split Depth:</label>
             <input
+              id="bsp-depth"
               type="range"
               min="0"
               max={splits.length}
               value={depth}
               onChange={(e) => setDepth(Number(e.target.value))}
+              aria-label="Current split depth"
+              aria-valuemin={0}
+              aria-valuemax={splits.length}
+              aria-valuenow={depth}
               className="w-24 accent-[#6c5ce7]"
             />
-            <span className="text-gray-400">{depth}/{splits.length}</span>
+            <span className="text-gray-400" aria-hidden="true">{depth}/{splits.length}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <label className="text-gray-400">Max Depth:</label>
+            <label htmlFor="bsp-max-depth" className="text-gray-400">Max Depth:</label>
             <input
+              id="bsp-max-depth"
               type="range"
               min="1"
               max="6"
@@ -1542,9 +1598,13 @@ export function BSPTreeDemo() {
                 setMaxDepth(Number(e.target.value));
                 setDepth(0);
               }}
+              aria-label="Maximum tree depth"
+              aria-valuemin={1}
+              aria-valuemax={6}
+              aria-valuenow={maxDepth}
               className="w-16 accent-[#6c5ce7]"
             />
-            <span className="text-gray-400">{maxDepth}</span>
+            <span className="text-gray-400" aria-hidden="true">{maxDepth}</span>
           </div>
           
           <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
@@ -1552,6 +1612,7 @@ export function BSPTreeDemo() {
               type="checkbox"
               checked={showRooms}
               onChange={(e) => setShowRooms(e.target.checked)}
+              aria-label="Show rooms in leaf nodes"
               className="accent-[#6c5ce7]"
             />
             Show Rooms
@@ -1559,9 +1620,10 @@ export function BSPTreeDemo() {
           
           <button
             onClick={() => setSeed(Math.random().toString(36).slice(2, 10))}
-            className="flex items-center gap-1 px-3 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white"
+            className="flex items-center gap-1 px-3 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white transition-colors"
+            aria-label="Generate new BSP tree"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
             New
           </button>
         </div>
@@ -1572,7 +1634,9 @@ export function BSPTreeDemo() {
           ref={canvasRef}
           width={width}
           height={height}
-          className="border border-[#2a2a3a] rounded"
+          className="border border-[#2a2a3a] rounded max-w-full"
+          role="img"
+          aria-label={`BSP tree visualization showing ${depth} of ${splits.length} splits`}
         />
       </div>
     </div>
@@ -1582,16 +1646,31 @@ export function BSPTreeDemo() {
 // ============ CELLULAR AUTOMATA PLAYGROUND ============
 export function CellularAutomataDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [grid, setGrid] = useState<boolean[][]>([]);
   const [birthRules, setBirthRules] = useState([5, 6, 7, 8]);
   const [surviveRules, setSurviveRules] = useState([4, 5, 6, 7, 8]);
   const [generation, setGeneration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [cellSize, setCellSize] = useState(8);
   const playingRef = useRef(false);
 
   const width = 60;
   const height = 40;
-  const cellSize = 8;
+
+  // Responsive sizing
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 32;
+        const maxCellSize = Math.floor(containerWidth / width);
+        setCellSize(Math.max(4, Math.min(maxCellSize, 10)));
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
 
   // Initialize random grid
   const reset = useCallback(() => {
@@ -1699,78 +1778,88 @@ export function CellularAutomataDemo() {
   };
 
   return (
-    <div className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
+    <div ref={containerRef} className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
       <div className="p-4 border-b border-[#2a2a3a] space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded ${isPlaying ? 'bg-[#e17055]' : 'bg-[#00b894]'} text-white text-sm`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded ${isPlaying ? 'bg-[#e17055]' : 'bg-[#00b894]'} text-white text-sm transition-colors`}
+            aria-label={isPlaying ? 'Pause simulation' : 'Play simulation'}
+            aria-pressed={isPlaying}
           >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            {isPlaying ? <Pause className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
             {isPlaying ? 'Pause' : 'Play'}
           </button>
           
           <button
             onClick={step}
             disabled={isPlaying}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white text-sm disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white text-sm disabled:opacity-50 transition-colors"
+            aria-label="Advance one generation"
           >
-            <StepForward className="w-4 h-4" />
+            <StepForward className="w-4 h-4" aria-hidden="true" />
             Step
           </button>
           
           <button
             onClick={reset}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white text-sm"
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white text-sm transition-colors"
+            aria-label="Reset to random initial state"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
             Reset
           </button>
           
-          <span className="text-gray-400 text-sm">Generation: {generation}</span>
+          <span className="text-gray-400 text-sm" aria-live="polite" aria-atomic="true">Generation: {generation}</span>
         </div>
         
         <div className="flex flex-wrap items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400">Birth (B):</span>
+          <fieldset className="flex items-center gap-2">
+            <legend className="text-gray-400 float-left mr-2">Birth (B):</legend>
             {[0,1,2,3,4,5,6,7,8].map(n => (
               <button
                 key={n}
                 onClick={() => toggleRule(birthRules, setBirthRules, n)}
-                className={`w-6 h-6 rounded ${birthRules.includes(n) ? 'bg-[#00b894] text-white' : 'bg-[#1a1a24] text-gray-500'}`}
+                className={`w-6 h-6 rounded transition-colors ${birthRules.includes(n) ? 'bg-[#00b894] text-white' : 'bg-[#1a1a24] text-gray-500 hover:text-gray-300'}`}
+                aria-pressed={birthRules.includes(n)}
+                aria-label={`Birth rule ${n} neighbors${birthRules.includes(n) ? ' (active)' : ''}`}
               >
                 {n}
               </button>
             ))}
-          </div>
+          </fieldset>
           
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400">Survive (S):</span>
+          <fieldset className="flex items-center gap-2">
+            <legend className="text-gray-400 float-left mr-2">Survive (S):</legend>
             {[0,1,2,3,4,5,6,7,8].map(n => (
               <button
                 key={n}
                 onClick={() => toggleRule(surviveRules, setSurviveRules, n)}
-                className={`w-6 h-6 rounded ${surviveRules.includes(n) ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-500'}`}
+                className={`w-6 h-6 rounded transition-colors ${surviveRules.includes(n) ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-500 hover:text-gray-300'}`}
+                aria-pressed={surviveRules.includes(n)}
+                aria-label={`Survive rule ${n} neighbors${surviveRules.includes(n) ? ' (active)' : ''}`}
               >
                 {n}
               </button>
             ))}
-          </div>
+          </fieldset>
         </div>
         
-        <div className="text-xs text-gray-500">
-          Current rule: B{birthRules.join('')}/S{surviveRules.join('')}
-          {birthRules.join('') === '5678' && surviveRules.join('') === '45678' && ' (Cave generation)'}
-          {birthRules.join('') === '3' && surviveRules.join('') === '23' && ' (Conway\'s Game of Life)'}
+        <div className="text-xs text-gray-500" aria-live="polite">
+          Current rule: <code className="font-mono text-[#6c5ce7]">B{birthRules.join('')}/S{surviveRules.join('')}</code>
+          {birthRules.join('') === '5678' && surviveRules.join('') === '45678' && <span className="text-[#00b894]"> (Cave generation)</span>}
+          {birthRules.join('') === '3' && surviveRules.join('') === '23' && <span className="text-[#00b894]"> (Conway's Game of Life)</span>}
         </div>
       </div>
       
-      <div className="flex justify-center p-4 bg-[#0a0a0f]">
+      <div className="flex justify-center p-4 bg-[#0a0a0f] overflow-auto">
         <canvas
           ref={canvasRef}
           width={width * cellSize}
           height={height * cellSize}
           className="border border-[#2a2a3a] rounded"
+          role="img"
+          aria-label={`Cellular automata simulation at generation ${generation}`}
         />
       </div>
     </div>
@@ -1780,13 +1869,30 @@ export function CellularAutomataDemo() {
 // ============ CORRIDOR ALGORITHM COMPARISON ============
 export function CorridorComparisonDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [corridorType, setCorridorType] = useState<CorridorType>('straight');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [corridorType, setCorridorType] = useState<CorridorType>('l-shaped');
   const [seed, setSeed] = useState(42);
+  const [canvasSize, setCanvasSize] = useState({ width: 400, height: 250 });
 
-  const width = 400;
-  const height = 250;
-  const room1 = { x: 50, y: 50, width: 80, height: 60 };
-  const room2 = { x: 270, y: 140, width: 80, height: 60 };
+  // Responsive sizing
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 32;
+        const w = Math.max(280, Math.min(containerWidth, 500));
+        setCanvasSize({ width: w, height: w * 0.625 });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  const width = canvasSize.width;
+  const height = canvasSize.height;
+  const scale = width / 400;
+  const room1 = { x: 50 * scale, y: 50 * scale, width: 80 * scale, height: 60 * scale };
+  const room2 = { x: 270 * scale, y: 140 * scale, width: 80 * scale, height: 60 * scale };
 
   useEffect(() => {
     const canvas = canvasRef.current;

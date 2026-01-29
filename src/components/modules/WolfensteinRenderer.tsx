@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Eye, Grid3X3, Maximize2, Move, Settings, Crosshair, ZoomIn, Map, Box, Layers, ChevronRight, Target, Compass } from 'lucide-react';
+import { Play, Pause, RotateCcw, Eye, Grid3X3, Maximize2, Move, Settings, Crosshair, ZoomIn, Map as MapIcon, Box, Layers, ChevronRight, Target, Compass } from 'lucide-react';
 
 // ============== TYPES ==============
 interface Vec2 {
@@ -943,9 +943,16 @@ export default function WolfensteinRenderer() {
   const [showMinimap, setShowMinimap] = useState(true);
   const [showFog, setShowFog] = useState(true);
   const [showSprites, setShowSprites] = useState(true);
-  const [keysPressed, setKeysPressed] = useState<Set<string>>(new Set());
-  const texturesRef = useRef<Map<number, ImageData>>(new Map());
+  const [keysPressed, setKeysPressed] = useState<Set<string>>(new Set<string>());
+  const texturesRef = useRef<Map<number, ImageData>>(new Map<number, ImageData>());
   const animRef = useRef<number>(0);
+  const touchRef = useRef<{ active: boolean; startX: number; startY: number; moveX: number; moveY: number }>({
+    active: false,
+    startX: 0,
+    startY: 0,
+    moveX: 0,
+    moveY: 0,
+  });
 
   const map = DEFAULT_MAP;
   const sprites = DEFAULT_SPRITES;
@@ -984,6 +991,38 @@ export default function WolfensteinRenderer() {
     };
   }, []);
 
+  // Handle touch input for mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      touchRef.current = {
+        active: true,
+        startX: touch.clientX,
+        startY: touch.clientY,
+        moveX: 0,
+        moveY: 0,
+      };
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchRef.current.active && e.touches.length > 0) {
+      const touch = e.touches[0];
+      touchRef.current.moveX = touch.clientX - touchRef.current.startX;
+      touchRef.current.moveY = touch.clientY - touchRef.current.startY;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    touchRef.current = {
+      active: false,
+      startX: 0,
+      startY: 0,
+      moveX: 0,
+      moveY: 0,
+    };
+  }, []);
+
   // Game loop
   useEffect(() => {
     const update = () => {
@@ -991,7 +1030,7 @@ export default function WolfensteinRenderer() {
         let { x, y, angle } = p;
         const moveDir = { x: 0, y: 0 };
 
-        // Movement
+        // Keyboard movement
         if (keysPressed.has('w') || keysPressed.has('arrowup')) {
           moveDir.x += Math.cos(angle) * MOVE_SPEED;
           moveDir.y += Math.sin(angle) * MOVE_SPEED;
@@ -1001,12 +1040,32 @@ export default function WolfensteinRenderer() {
           moveDir.y -= Math.sin(angle) * MOVE_SPEED;
         }
 
-        // Rotation
+        // Keyboard rotation
         if (keysPressed.has('a') || keysPressed.has('arrowleft')) {
           angle -= ROT_SPEED;
         }
         if (keysPressed.has('d') || keysPressed.has('arrowright')) {
           angle += ROT_SPEED;
+        }
+
+        // Touch input - virtual joystick style
+        if (touchRef.current.active) {
+          const deadzone = 20;
+          const maxDist = 100;
+          const { moveX, moveY } = touchRef.current;
+          
+          // Horizontal touch = rotation
+          if (Math.abs(moveX) > deadzone) {
+            const rotAmount = clamp(moveX / maxDist, -1, 1) * ROT_SPEED * 1.5;
+            angle += rotAmount;
+          }
+          
+          // Vertical touch = forward/backward
+          if (Math.abs(moveY) > deadzone) {
+            const moveAmount = clamp(-moveY / maxDist, -1, 1) * MOVE_SPEED;
+            moveDir.x += Math.cos(angle) * moveAmount;
+            moveDir.y += Math.sin(angle) * moveAmount;
+          }
         }
 
         // Apply movement with collision
@@ -1279,8 +1338,14 @@ export default function WolfensteinRenderer() {
           ref={canvasRef}
           width={640}
           height={400}
-          className="w-full bg-[#0a0a0a] rounded-lg border border-border"
+          className="w-full bg-[#0a0a0a] rounded-lg border border-border touch-none"
           tabIndex={0}
+          aria-label="Wolfenstein-style 3D raycasting view. Use WASD or arrow keys to move, or touch and drag on mobile."
+          role="application"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         />
         {showMinimap && (
           <canvas
@@ -1288,8 +1353,14 @@ export default function WolfensteinRenderer() {
             width={160}
             height={160}
             className="absolute top-2 right-2 rounded border border-border/50"
+            aria-label="Minimap showing player position and dungeon layout"
+            role="img"
           />
         )}
+        {/* Mobile touch hint */}
+        <div className="absolute bottom-2 left-2 right-2 text-center text-xs text-white/60 bg-black/40 rounded px-2 py-1 sm:hidden">
+          Touch and drag: horizontal = rotate, vertical = move
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1315,7 +1386,7 @@ export default function WolfensteinRenderer() {
             onChange={(e) => setShowMinimap(e.target.checked)}
             className="accent-accent w-4 h-4"
           />
-          <Map className="w-4 h-4 text-text-secondary" />
+          <MapIcon className="w-4 h-4 text-text-secondary" />
           <span className="text-white">Minimap</span>
         </label>
 
