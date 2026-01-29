@@ -1569,14 +1569,17 @@ export function InstancingDemo() {
             className={`px-4 py-2 rounded flex items-center gap-2 ${
               useInstancing ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
             }`}
+            aria-label={useInstancing ? 'Disable instancing' : 'Enable instancing'}
+            aria-pressed={useInstancing}
           >
-            <Zap size={16} />
+            <Zap size={16} aria-hidden="true" />
             {useInstancing ? 'Instancing ON' : 'Instancing OFF'}
           </button>
           
           <div className="flex items-center gap-2 flex-1">
-            <span className="text-sm text-text-secondary">Count:</span>
+            <label htmlFor="instance-count" className="text-sm text-text-secondary">Count:</label>
             <input
+              id="instance-count"
               type="range"
               min="100"
               max="10000"
@@ -1584,8 +1587,9 @@ export function InstancingDemo() {
               value={instanceCount}
               onChange={(e) => setInstanceCount(parseInt(e.target.value))}
               className="flex-1 max-w-xs"
+              aria-label="Number of instances"
             />
-            <span className="text-sm w-16">{instanceCount.toLocaleString()}</span>
+            <span className="text-sm w-16" aria-live="polite">{instanceCount.toLocaleString()}</span>
           </div>
         </div>
         
@@ -1710,22 +1714,26 @@ export function DrawCallAnalyzer() {
             className={`px-4 py-2 rounded flex items-center gap-2 ${
               batching ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
             }`}
+            aria-label={batching ? 'Disable batching' : 'Enable batching'}
+            aria-pressed={batching}
           >
-            <Copy size={16} />
+            <Copy size={16} aria-hidden="true" />
             {batching ? 'Batching ON' : 'Batching OFF'}
           </button>
           
           <div className="flex items-center gap-2 flex-1">
-            <span className="text-sm text-text-secondary">Objects:</span>
+            <label htmlFor="batch-object-count" className="text-sm text-text-secondary">Objects:</label>
             <input
+              id="batch-object-count"
               type="range"
               min="5"
               max="50"
               value={objectCount}
               onChange={(e) => setObjectCount(parseInt(e.target.value))}
               className="flex-1 max-w-xs"
+              aria-label="Number of objects"
             />
-            <span className="text-sm w-8">{objectCount}</span>
+            <span className="text-sm w-8" aria-live="polite">{objectCount}</span>
           </div>
         </div>
         
@@ -1918,8 +1926,10 @@ export function OptimizationComparison() {
               ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
               : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
           }`}
+          aria-label={optimized ? 'Switch to unoptimized rendering' : 'Switch to optimized rendering'}
+          aria-pressed={optimized}
         >
-          <RefreshCw size={18} />
+          <RefreshCw size={18} aria-hidden="true" />
           Switch to {optimized ? 'UNOPTIMIZED' : 'OPTIMIZED'}
         </button>
         
