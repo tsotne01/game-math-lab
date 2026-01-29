@@ -1365,17 +1365,19 @@ export default function WolfensteinRenderer() {
 
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
-          <label className="text-sm text-text-secondary flex items-center gap-2">
+          <label htmlFor="fov-slider" className="text-sm text-text-secondary flex items-center gap-2">
             <Eye className="w-4 h-4" />
             FOV: {fov}°
           </label>
           <input
+            id="fov-slider"
             type="range"
             min={30}
             max={120}
             value={fov}
             onChange={(e) => setFov(parseInt(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Field of view: ${fov} degrees`}
           />
         </div>
 
@@ -1385,6 +1387,7 @@ export default function WolfensteinRenderer() {
             checked={showMinimap}
             onChange={(e) => setShowMinimap(e.target.checked)}
             className="accent-accent w-4 h-4"
+            aria-label="Toggle minimap visibility"
           />
           <MapIcon className="w-4 h-4 text-text-secondary" />
           <span className="text-white">Minimap</span>
@@ -1396,6 +1399,7 @@ export default function WolfensteinRenderer() {
             checked={showFog}
             onChange={(e) => setShowFog(e.target.checked)}
             className="accent-accent w-4 h-4"
+            aria-label="Toggle distance fog effect"
           />
           <Layers className="w-4 h-4 text-text-secondary" />
           <span className="text-white">Distance Fog</span>
@@ -1407,6 +1411,7 @@ export default function WolfensteinRenderer() {
             checked={showSprites}
             onChange={(e) => setShowSprites(e.target.checked)}
             className="accent-accent w-4 h-4"
+            aria-label="Toggle sprite rendering"
           />
           <Box className="w-4 h-4 text-text-secondary" />
           <span className="text-white">Sprites</span>

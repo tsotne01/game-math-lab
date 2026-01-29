@@ -1910,7 +1910,7 @@ export function CorridorComparisonDemo() {
     ctx.fillRect(room2.x, room2.y, room2.width, room2.height);
     
     ctx.strokeStyle = '#4a4a5a';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * scale;
     ctx.strokeRect(room1.x, room1.y, room1.width, room1.height);
     ctx.strokeRect(room2.x, room2.y, room2.width, room2.height);
     
@@ -1920,7 +1920,7 @@ export function CorridorComparisonDemo() {
     
     // Draw corridor
     ctx.strokeStyle = '#6c5ce7';
-    ctx.lineWidth = 8;
+    ctx.lineWidth = 8 * scale;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
@@ -1952,37 +1952,43 @@ export function CorridorComparisonDemo() {
     // Draw center points
     ctx.fillStyle = '#fdcb6e';
     ctx.beginPath();
-    ctx.arc(c1.x, c1.y, 5, 0, Math.PI * 2);
+    ctx.arc(c1.x, c1.y, 5 * scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(c2.x, c2.y, 5, 0, Math.PI * 2);
+    ctx.arc(c2.x, c2.y, 5 * scale, 0, Math.PI * 2);
     ctx.fill();
     
-  }, [corridorType, seed]);
+  }, [corridorType, seed, width, height, scale, room1, room2]);
 
   return (
-    <div className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
+    <div ref={containerRef} className="bg-[#0d0d14] rounded-xl border border-[#2a2a3a] overflow-hidden">
       <div className="p-4 border-b border-[#2a2a3a]">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-gray-400 text-sm">Corridor Type:</span>
+        <div className="flex flex-wrap items-center gap-3" role="group" aria-label="Corridor type selection">
+          <span className="text-gray-400 text-sm" id="corridor-label">Corridor Type:</span>
           
           <button
             onClick={() => setCorridorType('straight')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm ${corridorType === 'straight' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 border border-[#3a3a4a]'}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${corridorType === 'straight' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 border border-[#3a3a4a] hover:text-white'}`}
+            aria-pressed={corridorType === 'straight'}
+            aria-describedby="corridor-label"
           >
             Straight
           </button>
           
           <button
             onClick={() => setCorridorType('l-shaped')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm ${corridorType === 'l-shaped' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 border border-[#3a3a4a]'}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${corridorType === 'l-shaped' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 border border-[#3a3a4a] hover:text-white'}`}
+            aria-pressed={corridorType === 'l-shaped'}
+            aria-describedby="corridor-label"
           >
             L-Shaped
           </button>
           
           <button
             onClick={() => setCorridorType('zigzag')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm ${corridorType === 'zigzag' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 border border-[#3a3a4a]'}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${corridorType === 'zigzag' ? 'bg-[#6c5ce7] text-white' : 'bg-[#1a1a24] text-gray-400 border border-[#3a3a4a] hover:text-white'}`}
+            aria-pressed={corridorType === 'zigzag'}
+            aria-describedby="corridor-label"
           >
             Zigzag
           </button>
@@ -1990,9 +1996,10 @@ export function CorridorComparisonDemo() {
           {corridorType === 'l-shaped' && (
             <button
               onClick={() => setSeed(s => s + 1)}
-              className="flex items-center gap-1 px-2 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white text-sm"
+              className="flex items-center gap-1 px-2 py-1 bg-[#1a1a24] rounded border border-[#3a3a4a] hover:border-[#6c5ce7] text-gray-400 hover:text-white text-sm transition-colors"
+              aria-label="Flip L-shape orientation"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
               Flip
             </button>
           )}
@@ -2004,11 +2011,13 @@ export function CorridorComparisonDemo() {
           ref={canvasRef}
           width={width}
           height={height}
-          className="border border-[#2a2a3a] rounded"
+          className="border border-[#2a2a3a] rounded max-w-full"
+          role="img"
+          aria-label={`Demonstration of ${corridorType} corridor connecting two rooms`}
         />
       </div>
       
-      <div className="px-4 pb-4 text-xs text-gray-500">
+      <div className="px-4 pb-4 text-xs text-gray-500" aria-live="polite">
         {corridorType === 'straight' && 'Direct line between room centers. Fast but may clip through walls.'}
         {corridorType === 'l-shaped' && 'Two-segment path (horizontal then vertical, or vice versa). Most common in roguelikes.'}
         {corridorType === 'zigzag' && 'Three-segment path through a midpoint. Creates interesting layouts.'}
