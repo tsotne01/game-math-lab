@@ -1,0 +1,754 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import DungeonCrawler, { BFSVisualizer, DijkstraVisualizer, AStarVisualizer, HeuristicComparison, PathSmoothingDemo } from '../../../components/modules/DungeonCrawler';
+import Quiz from '../../../components/lessons/Quiz';
+
+// Code snippets
+const codeGraphBasics = `// A graph is a collection of nodes (vertices) connected by edges
+// In games, we often use a GRID as our graph
+
+// Adjacency List representation
+const graph = {
+    'A': ['B', 'C'],      // A connects to B and C
+    'B': ['A', 'D', 'E'], // B connects to A, D, and E
+    'C': ['A', 'F'],
+    'D': ['B'],
+    'E': ['B', 'F'],
+    'F': ['C', 'E']
+};
+
+// For a 2D grid, neighbors are adjacent cells
+function getNeighbors(x, y, grid) {
+    const neighbors = [];
+    const directions = [
+        { x: 0, y: -1 },  // up
+        { x: 0, y: 1 },   // down
+        { x: -1, y: 0 },  // left
+        { x: 1, y: 0 },   // right
+    ];
+    
+    for (const dir of directions) {
+        const nx = x + dir.x;
+        const ny = y + dir.y;
+        // Check bounds and walkability
+        if (isValid(nx, ny) && !grid[ny][nx].isWall) {
+            neighbors.push({ x: nx, y: ny });
+        }
+    }
+    return neighbors;
+}`;
+
+const codeBFS = `// BFS explores all nodes at distance d before distance d+1
+// Perfect for unweighted graphs (all edges have cost 1)
+
+function bfs(start, goal, grid) {
+    const queue = [start];         // FIFO queue
+    const visited = new Set();
+    const parent = new Map();      // To reconstruct path
+    
+    visited.add(key(start));
+    
+    while (queue.length > 0) {
+        const current = queue.shift();  // Dequeue front
+        
+        // Found the goal!
+        if (current.x === goal.x && current.y === goal.y) {
+            return reconstructPath(parent, goal);
+        }
+        
+        // Explore neighbors
+        for (const neighbor of getNeighbors(current, grid)) {
+            const k = key(neighbor);
+            if (!visited.has(k)) {
+                visited.add(k);
+                parent.set(k, current);
+                queue.push(neighbor);  // Enqueue at back
+            }
+        }
+    }
+    
+    return null;  // No path found
+}`;
+
+const codeDijkstra = `// Dijkstra's algorithm handles WEIGHTED graphs
+// Always expands the node with lowest total cost
+
+function dijkstra(start, goal, grid) {
+    const openSet = new PriorityQueue();  // Min-heap by cost
+    const gScore = new Map();             // Cost from start
+    const parent = new Map();
+    
+    gScore.set(key(start), 0);
+    openSet.enqueue(start, 0);
+    
+    while (!openSet.isEmpty()) {
+        const current = openSet.dequeue();
+        
+        if (current.x === goal.x && current.y === goal.y) {
+            return reconstructPath(parent, goal);
+        }
+        
+        for (const neighbor of getNeighbors(current, grid)) {
+            // Calculate movement cost (could vary by terrain!)
+            const moveCost = grid[neighbor.y][neighbor.x].weight;
+            const tentativeG = gScore.get(key(current)) + moveCost;
+            
+            if (tentativeG < (gScore.get(key(neighbor)) || Infinity)) {
+                parent.set(key(neighbor), current);
+                gScore.set(key(neighbor), tentativeG);
+                openSet.enqueue(neighbor, tentativeG);
+            }
+        }
+    }
+    
+    return null;
+}`;
+
+const codeAStar = `// A* = Dijkstra + Heuristic
+// f(n) = g(n) + h(n)
+// g(n) = actual cost from start to n
+// h(n) = estimated cost from n to goal
+
+function aStar(start, goal, grid, heuristic) {
+    const openSet = new PriorityQueue();  // Min-heap by f-score
+    const gScore = new Map();
+    const fScore = new Map();
+    const parent = new Map();
+    
+    gScore.set(key(start), 0);
+    fScore.set(key(start), heuristic(start, goal));
+    openSet.enqueue(start, fScore.get(key(start)));
+    
+    while (!openSet.isEmpty()) {
+        const current = openSet.dequeue();
+        
+        if (current.x === goal.x && current.y === goal.y) {
+            return reconstructPath(parent, goal);
+        }
+        
+        for (const neighbor of getNeighbors(current, grid)) {
+            const moveCost = grid[neighbor.y][neighbor.x].weight;
+            const tentativeG = gScore.get(key(current)) + moveCost;
+            
+            if (tentativeG < (gScore.get(key(neighbor)) || Infinity)) {
+                parent.set(key(neighbor), current);
+                gScore.set(key(neighbor), tentativeG);
+                
+                // Key difference: add heuristic!
+                const f = tentativeG + heuristic(neighbor, goal);
+                fScore.set(key(neighbor), f);
+                openSet.enqueue(neighbor, f);
+            }
+        }
+    }
+    
+    return null;
+}`;
+
+const codeHeuristics = `// MANHATTAN DISTANCE (L1 norm)
+// Sum of horizontal and vertical distances
+// Best for: 4-directional movement (no diagonals)
+function manhattan(a, b) {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+// EUCLIDEAN DISTANCE (L2 norm)  
+// Straight-line "as the crow flies" distance
+// Best for: Free movement in any direction
+function euclidean(a, b) {
+    return Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2);
+}
+
+// CHEBYSHEV DISTANCE (L∞ norm)
+// Maximum of horizontal or vertical distance
+// Best for: 8-directional movement (with diagonals)
+function chebyshev(a, b) {
+    return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
+// OCTILE DISTANCE (for 8-direction grids)
+// More accurate than Chebyshev for grid movement
+function octile(a, b) {
+    const dx = Math.abs(a.x - b.x);
+    const dy = Math.abs(a.y - b.y);
+    return (dx + dy) + (Math.SQRT2 - 2) * Math.min(dx, dy);
+}`;
+
+const codeGridPathfinding = `// Practical grid-based pathfinding implementation
+
+class GridPathfinder {
+    constructor(width, height) {
+        this.width = width;
+        this.height = height;
+        this.grid = this.createGrid();
+    }
+    
+    createGrid() {
+        return Array(this.height).fill(null).map(() =>
+            Array(this.width).fill(null).map(() => ({
+                walkable: true,
+                weight: 1
+            }))
+        );
+    }
+    
+    setWall(x, y) {
+        this.grid[y][x].walkable = false;
+    }
+    
+    setWeight(x, y, weight) {
+        this.grid[y][x].weight = weight;
+    }
+    
+    findPath(start, goal) {
+        // Use A* with Manhattan heuristic
+        return aStar(start, goal, this.grid, manhattan);
+    }
+    
+    // 8-directional neighbors (including diagonals)
+    getNeighbors(x, y) {
+        const neighbors = [];
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = x + dx, ny = y + dy;
+                if (this.isValid(nx, ny) && this.grid[ny][nx].walkable) {
+                    // Prevent corner-cutting through walls
+                    if (dx !== 0 && dy !== 0) {
+                        if (!this.grid[y][nx].walkable || 
+                            !this.grid[ny][x].walkable) continue;
+                    }
+                    neighbors.push({ x: nx, y: ny });
+                }
+            }
+        }
+        return neighbors;
+    }
+}`;
+
+const codePathSmoothing = `// Path smoothing using line-of-sight checks
+// Removes unnecessary waypoints for more natural movement
+
+function smoothPath(path, grid) {
+    if (path.length <= 2) return path;
+    
+    const smoothed = [path[0]];  // Start with first point
+    let current = 0;
+    
+    while (current < path.length - 1) {
+        // Find furthest visible point
+        let furthest = current + 1;
+        
+        for (let i = path.length - 1; i > current + 1; i--) {
+            if (hasLineOfSight(path[current], path[i], grid)) {
+                furthest = i;
+                break;  // Found furthest, stop looking
+            }
+        }
+        
+        smoothed.push(path[furthest]);
+        current = furthest;
+    }
+    
+    return smoothed;
+}
+
+// Bresenham's line algorithm for line-of-sight
+function hasLineOfSight(a, b, grid) {
+    let x = a.x, y = a.y;
+    const dx = Math.abs(b.x - a.x);
+    const dy = Math.abs(b.y - a.y);
+    const sx = a.x < b.x ? 1 : -1;
+    const sy = a.y < b.y ? 1 : -1;
+    let err = dx - dy;
+    
+    while (x !== b.x || y !== b.y) {
+        if (grid[y][x].isWall) return false;
+        
+        const e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x += sx; }
+        if (e2 < dx) { err += dx; y += sy; }
+    }
+    
+    return true;  // No walls in the way!
+}`;
+
+// Quiz questions
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is the key difference between BFS and Dijkstra\'s algorithm?',
+    options: [
+      'BFS is slower than Dijkstra',
+      'Dijkstra handles weighted graphs, BFS treats all edges equally',
+      'BFS finds longer paths than Dijkstra',
+      'Dijkstra only works on grids'
+    ],
+    correctIndex: 1,
+    explanation: 'BFS treats all edges as having equal cost (unweighted). Dijkstra\'s algorithm considers edge weights, making it suitable for graphs where different paths have different costs (like terrain with varying movement penalties).'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In A*, what does f(n) = g(n) + h(n) represent?',
+    options: [
+      'f = final cost, g = goal cost, h = heuristic',
+      'f = total estimated cost, g = cost from start, h = estimated cost to goal',
+      'f = first node, g = ground cost, h = height',
+      'f = frequency, g = graph size, h = hop count'
+    ],
+    correctIndex: 1,
+    explanation: 'f(n) is the total estimated cost through node n. g(n) is the actual cost from the start to n, and h(n) is the heuristic estimate from n to the goal. A* always expands the node with the lowest f value.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the Manhattan distance formula:',
+    codeTemplate: 'function manhattan(a, b) {\n    return Math.abs(a.x - b.x) + Math.___(a.y - b.y);\n}',
+    answers: ['abs'],
+    explanation: 'Manhattan distance is the sum of absolute differences in x and y coordinates. It\'s called "Manhattan" because it measures distance like walking on a grid of city blocks.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Which heuristic is best for 4-directional grid movement (no diagonals)?',
+    options: [
+      'Euclidean distance',
+      'Chebyshev distance',
+      'Manhattan distance',
+      'Octile distance'
+    ],
+    correctIndex: 2,
+    explanation: 'Manhattan distance is perfect for 4-directional movement because it exactly matches the actual shortest path on a grid where you can only move up/down/left/right. It never overestimates the true cost.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What happens if a heuristic OVERESTIMATES the true cost?',
+    options: [
+      'A* becomes faster',
+      'A* may find suboptimal paths',
+      'A* becomes equivalent to BFS',
+      'The path becomes smoother'
+    ],
+    correctIndex: 1,
+    explanation: 'An overestimating (inadmissible) heuristic can cause A* to miss the optimal path. It might find A path, but not necessarily the SHORTEST path. Admissible heuristics never overestimate.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In A*, what is the "open set"?',
+    options: [
+      'Cells that are blocked/walls',
+      'Cells we\'ve fully explored',
+      'Cells discovered but not yet evaluated',
+      'The final path nodes'
+    ],
+    correctIndex: 2,
+    explanation: 'The open set contains nodes we\'ve discovered but haven\'t fully evaluated yet. These are candidates for expansion. The closed set contains nodes we\'ve already processed.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the BFS algorithm - which data structure do we use?',
+    codeTemplate: 'const ___ = [start];\n// ... \nconst current = ___.shift();  // Get from front\n// ...\n___.push(neighbor);  // Add to back',
+    answers: ['queue'],
+    explanation: 'BFS uses a FIFO (First-In-First-Out) queue. We add new nodes to the back and process from the front. This ensures we explore all nodes at distance d before moving to distance d+1.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Why do we smooth paths after pathfinding?',
+    options: [
+      'To make the algorithm faster',
+      'To remove unnecessary waypoints for more natural movement',
+      'To add more waypoints for precision',
+      'To handle weighted terrain'
+    ],
+    correctIndex: 1,
+    explanation: 'Grid-based pathfinding creates paths that follow grid cells, resulting in jagged, unnatural movement. Path smoothing removes intermediate waypoints where there\'s a clear line of sight, creating smoother, more direct movement.'
+  }
+];
+---
+
+<ModuleLayout 
+  title="Pathfinding Algorithms"
+  moduleNumber="07"
+  projectName="Dungeon Crawler"
+  prevModule={{ href: '/modules/06-steering/', title: 'Steering Behaviors' }}
+>
+  <!-- Lesson 1: Graph Representation -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. Graph Representation</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Pathfinding</strong> is about finding the best route from point A to point B.
+      To do this programmatically, we need to represent our game world as a <strong class="text-white">graph</strong>.
+    </p>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/></svg>
+          Nodes (Vertices)
+        </h3>
+        <p class="text-sm text-text-secondary">Locations in your world - could be grid cells, waypoints, or rooms.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+          Edges
+        </h3>
+        <p class="text-sm text-text-secondary">Connections between nodes - which locations can reach which.</p>
+      </div>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      For most 2D games, we use a <strong class="text-white">grid</strong> where each cell is a node 
+      and adjacent cells are connected by edges. Walls simply don't have edges to their neighbors!
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeGraphBasics} /></pre>
+    </div>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#6c5ce7]">Key Insight:</strong> The graph representation determines what paths are possible. 
+        4-directional grids create different paths than 8-directional grids!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: BFS -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Breadth-First Search (BFS)</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">BFS</strong> is the simplest pathfinding algorithm. It explores nodes 
+      in layers - first all nodes 1 step away, then 2 steps, then 3, etc.
+    </p>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Guaranteed shortest path</strong> on unweighted graphs</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Uses a <strong class="text-white">queue</strong> (FIFO) data structure</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Explores uniformly in all directions (no goal awareness)</span>
+      </li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeBFS} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Watch BFS explore layer by layer - notice how it expands equally in all directions:
+    </p>
+
+    <BFSVisualizer client:visible />
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#fdcb6e]">Limitation:</strong> BFS treats all movement as equal cost. It doesn't know 
+        that walking through mud is slower than walking on a road!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Dijkstra's Algorithm -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. Dijkstra's Algorithm</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Dijkstra's algorithm</strong> handles <em>weighted</em> graphs where 
+      different paths have different costs. It always expands the node with the lowest total cost so far.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeDijkstra} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      See how Dijkstra avoids high-cost terrain (orange areas cost 5× more to traverse):
+    </p>
+
+    <DijkstraVisualizer client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+        <span><strong class="text-[#00b894]">Game Design Tip:</strong> Use terrain weights for: muddy swamps, 
+        steep hills, roads vs. grass, enemy territory vs. safe zones.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: A* Algorithm -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. A* Algorithm</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">A*</strong> (pronounced "A-star") is the gold standard for game pathfinding. 
+      It combines Dijkstra's accuracy with a <strong class="text-white">heuristic</strong> that guides the search toward the goal.
+    </p>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-6 mb-6 text-center">
+      <code class="text-lg text-[#6c5ce7] font-bold">f(n) = g(n) + h(n)</code>
+      <div class="mt-3 text-sm text-text-secondary">
+        <span class="text-[#e17055]">f</span> = total estimated cost • 
+        <span class="text-[#00b894]">g</span> = actual cost from start • 
+        <span class="text-[#74b9ff]">h</span> = estimated cost to goal
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeAStar} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Watch A* search more efficiently by preferring nodes closer to the goal:
+    </p>
+
+    <AStarVisualizer client:visible />
+
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">vs. BFS</h3>
+        <p class="text-sm text-text-secondary">A* explores far fewer nodes because the heuristic guides it toward the goal instead of expanding equally in all directions.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">vs. Dijkstra</h3>
+        <p class="text-sm text-text-secondary">A* is essentially "Dijkstra with direction" - it still guarantees optimal paths but focuses the search.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lesson 5: Heuristics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Heuristics</h2>
+    
+    <p class="text-text-secondary mb-4">
+      The <strong class="text-white">heuristic function h(n)</strong> estimates the cost from any node to the goal. 
+      Choosing the right heuristic is crucial for A* performance!
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeHeuristics} /></pre>
+    </div>
+
+    <HeuristicComparison client:visible />
+
+    <div class="mt-6 space-y-4">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-1">Admissible Heuristics</h3>
+        <p class="text-sm text-text-secondary">
+          A heuristic is <strong class="text-white">admissible</strong> if it never overestimates the true cost. 
+          This guarantees A* finds the optimal path!
+        </p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#fdcb6e]">
+        <h3 class="font-bold text-white mb-1">Consistent Heuristics</h3>
+        <p class="text-sm text-text-secondary">
+          A heuristic is <strong class="text-white">consistent</strong> if h(n) ≤ cost(n, n') + h(n') for all edges.
+          Consistent heuristics are always admissible and prevent A* from re-expanding nodes.
+        </p>
+      </div>
+    </div>
+
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#e17055] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>
+        <span><strong class="text-[#e17055]">Warning:</strong> If your heuristic overestimates costs, A* may find 
+        suboptimal paths. Always choose a heuristic that matches your movement rules!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 6: Grid-Based Pathfinding -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">6. Grid-Based Pathfinding</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Putting it all together - here's a practical implementation for grid-based games:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeGridPathfinding} /></pre>
+    </div>
+
+    <h3 class="text-xl font-bold text-white mb-3">Common Considerations</h3>
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span><strong class="text-white">Corner-cutting:</strong> Prevent diagonal movement through wall corners by checking adjacent cells.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span><strong class="text-white">Diagonal cost:</strong> Use √2 ≈ 1.414 for diagonal movement, or use octile distance.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span><strong class="text-white">Unit size:</strong> For large units, check all cells the unit would occupy, not just the center.</span>
+      </li>
+      <li class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-accent flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span><strong class="text-white">Path caching:</strong> Recompute paths only when the world changes or periodically for moving targets.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Lesson 7: Path Smoothing -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">7. Path Smoothing</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Grid paths look robotic - characters zigzag along cell boundaries. 
+      <strong class="text-white">Path smoothing</strong> creates more natural movement by removing unnecessary waypoints.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codePathSmoothing} /></pre>
+    </div>
+
+    <PathSmoothingDemo client:visible />
+
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#6c5ce7]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/></svg>
+          Line-of-Sight Smoothing
+        </h3>
+        <p class="text-sm text-text-secondary">Check if we can "see" further waypoints and skip intermediate ones.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          Funnel Algorithm
+        </h3>
+        <p class="text-sm text-text-secondary">More advanced technique for navigation meshes - "funnels" the path through portals.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Project: Dungeon Crawler -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Dungeon Crawler
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      Navigate through the dungeon to reach the golden goal! Enemies use A* pathfinding to hunt you down.
+    </p>
+
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">WASD / Arrow keys</strong> to move</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Toggle pathfinding</strong> to see the A* visualization</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Enemies</strong> recalculate paths to track your position</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Multiple levels</strong> with increasing difficulty</span>
+      </li>
+    </ul>
+
+    <DungeonCrawler client:visible />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Weighted Terrain:</strong> Add mud/water tiles that slow enemies down
+      </li>
+      <li>
+        <strong class="text-white">Enemy Variety:</strong> Create different enemy types - fast but weak, slow but strong
+      </li>
+      <li>
+        <strong class="text-white">Fog of War:</strong> Enemies only pathfind when they have line-of-sight to player
+      </li>
+      <li>
+        <strong class="text-white">Collectibles:</strong> Add keys to unlock doors, creating more interesting paths
+      </li>
+      <li>
+        <strong class="text-white">Procedural Generation:</strong> Generate dungeon layouts using algorithms like BSP
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formula Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+      Quick Reference
+    </h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">A* Formula</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-accent">f(n) = g(n) + h(n)</code></li>
+            <li><code>g(n)</code> = cost from start to n</li>
+            <li><code>h(n)</code> = estimated cost n → goal</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Algorithm Comparison</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#74b9ff]">BFS</code> — Unweighted, no heuristic</li>
+            <li><code class="text-[#fdcb6e]">Dijkstra</code> — Weighted, no heuristic</li>
+            <li><code class="text-[#00b894]">A*</code> — Weighted + heuristic</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Heuristics</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>Manhattan</code> — |dx| + |dy|</li>
+            <li><code>Euclidean</code> — √(dx² + dy²)</li>
+            <li><code>Chebyshev</code> — max(|dx|, |dy|)</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Heuristic Matching</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li>4-dir grid → Manhattan</li>
+            <li>8-dir grid → Chebyshev/Octile</li>
+            <li>Free movement → Euclidean</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of pathfinding algorithms!
+    </p>
+    <Quiz 
+      client:visible 
+      title="Pathfinding Quiz" 
+      questions={quizQuestions} 
+    />
+  </section>
+</ModuleLayout>

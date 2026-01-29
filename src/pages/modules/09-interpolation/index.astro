@@ -1,0 +1,748 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import TweenEngine, { LerpDemo, EasingComparison, EasingCurveGraph, BezierEditor, SplineEditor, CutsceneCreator } from '../../../components/modules/TweenEngine';
+import Quiz from '../../../components/lessons/Quiz';
+
+// Code snippets
+const codeLerp = `// Linear Interpolation (LERP)
+// Returns a value between a and b based on t (0 to 1)
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+// Examples:
+lerp(0, 100, 0.0)  // → 0    (start)
+lerp(0, 100, 0.5)  // → 50   (middle)
+lerp(0, 100, 1.0)  // → 100  (end)
+lerp(0, 100, 0.25) // → 25   (quarter)
+
+// Equivalent formula:
+// lerp(a, b, t) = a * (1 - t) + b * t`;
+
+const codeLerpVec2 = `// Lerp works on any type - positions, colors, sizes...
+function lerpVec2(a, b, t) {
+    return {
+        x: lerp(a.x, b.x, t),
+        y: lerp(a.y, b.y, t)
+    };
+}
+
+function lerpColor(a, b, t) {
+    return {
+        r: Math.round(lerp(a.r, b.r, t)),
+        g: Math.round(lerp(a.g, b.g, t)),
+        b: Math.round(lerp(a.b, b.b, t))
+    };
+}
+
+// Moving from A to B over 60 frames:
+let t = 0;
+function update() {
+    t += 1 / 60;  // Increase by 1/60 each frame
+    object.position = lerpVec2(startPos, endPos, t);
+}`;
+
+const codeEasingBasic = `// EASING transforms the t value before interpolation
+// This changes HOW we move, not WHERE we move
+
+// Linear: constant speed (no easing)
+const linear = (t) => t;
+
+// Ease In: slow start, fast end
+const easeInQuad = (t) => t * t;
+
+// Ease Out: fast start, slow end  
+const easeOutQuad = (t) => t * (2 - t);
+
+// Ease In-Out: slow start and end
+const easeInOutQuad = (t) => 
+    t < 0.5 
+        ? 2 * t * t 
+        : -1 + (4 - 2 * t) * t;
+
+// Usage:
+const easedT = easeOutQuad(t);
+object.x = lerp(startX, endX, easedT);`;
+
+const codeEasingCurves = `// Higher power = more dramatic acceleration
+const easeInCubic = (t) => t * t * t;
+const easeInQuart = (t) => t * t * t * t;
+const easeInQuint = (t) => t * t * t * t * t;
+
+// ELASTIC: overshoots and springs back
+const easeOutElastic = (t) => {
+    const c4 = (2 * Math.PI) / 3;
+    return t === 0 ? 0 : t === 1 ? 1 
+        : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+};
+
+// BOUNCE: like a ball bouncing
+const easeOutBounce = (t) => {
+    const n1 = 7.5625;
+    const d1 = 2.75;
+    if (t < 1 / d1) return n1 * t * t;
+    if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
+    if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
+    return n1 * (t -= 2.625 / d1) * t + 0.984375;
+};
+
+// BACK: overshoots the target, then returns
+const easeOutBack = (t) => {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+};`;
+
+const codeBezier = `// QUADRATIC BEZIER: 3 control points
+// P0 = start, P1 = control, P2 = end
+function quadraticBezier(p0, p1, p2, t) {
+    const oneMinusT = 1 - t;
+    return {
+        x: oneMinusT² * p0.x + 2 * oneMinusT * t * p1.x + t² * p2.x,
+        y: oneMinusT² * p0.y + 2 * oneMinusT * t * p1.y + t² * p2.y
+    };
+}
+
+// CUBIC BEZIER: 4 control points (most common)
+// P0 = start, P1/P2 = controls, P3 = end
+function cubicBezier(p0, p1, p2, p3, t) {
+    const oneMinusT = 1 - t;
+    const oneMinusT2 = oneMinusT * oneMinusT;
+    const oneMinusT3 = oneMinusT2 * oneMinusT;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    
+    return {
+        x: oneMinusT3 * p0.x + 3 * oneMinusT2 * t * p1.x 
+           + 3 * oneMinusT * t2 * p2.x + t3 * p3.x,
+        y: oneMinusT3 * p0.y + 3 * oneMinusT2 * t * p1.y 
+           + 3 * oneMinusT * t2 * p2.y + t3 * p3.y
+    };
+}`;
+
+const codeSpline = `// CATMULL-ROM SPLINE
+// Smooth curve that passes through ALL control points
+// Needs 4 points: p0, p1, p2, p3
+// Curve goes from p1 to p2, using p0 and p3 for smoothness
+
+function catmullRom(p0, p1, p2, p3, t) {
+    const t2 = t * t;
+    const t3 = t2 * t;
+    
+    return {
+        x: 0.5 * (
+            (2 * p1.x) +
+            (-p0.x + p2.x) * t +
+            (2*p0.x - 5*p1.x + 4*p2.x - p3.x) * t2 +
+            (-p0.x + 3*p1.x - 3*p2.x + p3.x) * t3
+        ),
+        y: 0.5 * (
+            (2 * p1.y) +
+            (-p0.y + p2.y) * t +
+            (2*p0.y - 5*p1.y + 4*p2.y - p3.y) * t2 +
+            (-p0.y + 3*p1.y - 3*p2.y + p3.y) * t3
+        )
+    };
+}
+
+// For a path through many points:
+function getSplinePoint(points, t) {
+    const numSegments = points.length - 1;
+    const segment = Math.floor(t * numSegments);
+    const localT = (t * numSegments) - segment;
+    
+    const p0 = points[Math.max(0, segment - 1)];
+    const p1 = points[segment];
+    const p2 = points[Math.min(points.length - 1, segment + 1)];
+    const p3 = points[Math.min(points.length - 1, segment + 2)];
+    
+    return catmullRom(p0, p1, p2, p3, localT);
+}`;
+
+const codeKeyframe = `// KEYFRAME ANIMATION
+// Define states at specific times, interpolate between them
+
+const animation = {
+    duration: 2.0,  // seconds
+    keyframes: [
+        { t: 0.0, x: 100, y: 200, scale: 1.0, rotation: 0 },
+        { t: 0.5, x: 300, y: 100, scale: 1.5, rotation: 180 },
+        { t: 1.0, x: 500, y: 200, scale: 1.0, rotation: 360 }
+    ]
+};
+
+function getAnimationState(animation, time) {
+    const { keyframes, duration } = animation;
+    const t = Math.min(time / duration, 1.0);
+    
+    // Find surrounding keyframes
+    let startKf = keyframes[0];
+    let endKf = keyframes[keyframes.length - 1];
+    
+    for (let i = 0; i < keyframes.length - 1; i++) {
+        if (t >= keyframes[i].t && t <= keyframes[i + 1].t) {
+            startKf = keyframes[i];
+            endKf = keyframes[i + 1];
+            break;
+        }
+    }
+    
+    // Calculate local t within this segment
+    const segmentT = (t - startKf.t) / (endKf.t - startKf.t);
+    
+    return {
+        x: lerp(startKf.x, endKf.x, segmentT),
+        y: lerp(startKf.y, endKf.y, segmentT),
+        scale: lerp(startKf.scale, endKf.scale, segmentT),
+        rotation: lerp(startKf.rotation, endKf.rotation, segmentT)
+    };
+}`;
+
+const codeChaining = `// ANIMATION SEQUENCE
+// Chain multiple animations with different easings
+
+const sequence = [
+    { name: 'Slide In', start: 0, end: 1, easing: 'easeOutCubic',
+      from: { x: -50, y: 100 }, to: { x: 200, y: 100 } },
+    { name: 'Pulse', start: 1, end: 2, easing: 'easeInOutQuad',
+      from: { scale: 1 }, to: { scale: 1.5 } },
+    { name: 'Slide Out', start: 2, end: 3, easing: 'easeInBack',
+      from: { x: 200, y: 100 }, to: { x: 500, y: 100 } }
+];
+
+function playSequence(sequence, time) {
+    for (const anim of sequence) {
+        if (time >= anim.start && time <= anim.end) {
+            const localT = (time - anim.start) / (anim.end - anim.start);
+            const easedT = easingFunctions[anim.easing](localT);
+            
+            return interpolate(anim.from, anim.to, easedT);
+        }
+    }
+}
+
+// TWEEN CLASS (common pattern)
+class Tween {
+    constructor(target, properties, duration, easing) {
+        this.target = target;
+        this.start = { ...target };
+        this.end = properties;
+        this.duration = duration;
+        this.easing = easing;
+        this.elapsed = 0;
+    }
+    
+    update(dt) {
+        this.elapsed += dt;
+        const t = Math.min(this.elapsed / this.duration, 1);
+        const easedT = this.easing(t);
+        
+        for (const key in this.end) {
+            this.target[key] = lerp(this.start[key], this.end[key], easedT);
+        }
+        
+        return t >= 1; // Returns true when complete
+    }
+}`;
+
+// Quiz questions
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'What does lerp(0, 100, 0.75) return?',
+    options: ['25', '50', '75', '100'],
+    correctIndex: 2,
+    explanation: 'lerp(0, 100, 0.75) = 0 + (100 - 0) × 0.75 = 75. The t value of 0.75 means 75% of the way from 0 to 100.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Which easing function starts slow and ends fast?',
+    options: ['easeOut', 'easeIn', 'easeInOut', 'linear'],
+    correctIndex: 1,
+    explanation: 'easeIn starts slow (accelerating) and ends fast. Think of it like a car accelerating from a stop. easeOut is the opposite - starts fast and slows down at the end.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'How many control points does a cubic Bezier curve have?',
+    options: ['2', '3', '4', '5'],
+    correctIndex: 2,
+    explanation: 'A cubic Bezier has 4 control points: P0 (start), P1 and P2 (control handles), and P3 (end). Quadratic Bezier has 3 points.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the lerp formula:',
+    codeTemplate: 'function lerp(a, b, t) {\n    return a + (b - ___) * t;\n}',
+    answers: ['a'],
+    explanation: 'lerp(a, b, t) = a + (b - a) * t. We calculate the difference (b - a), scale it by t, and add it to the starting value a.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is special about a Catmull-Rom spline?',
+    options: [
+      'It never touches the control points',
+      'It passes through all control points',
+      'It only works with straight lines',
+      'It requires exactly 2 points'
+    ],
+    correctIndex: 1,
+    explanation: 'Catmull-Rom splines are "interpolating" splines - the curve passes directly through every control point. Bezier curves, in contrast, are "pulled" toward control points but typically don\'t pass through them (except endpoints).'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'Which easing would make a UI button feel "bouncy" when clicked?',
+    options: ['linear', 'easeInQuad', 'easeOutBounce', 'easeInSine'],
+    correctIndex: 2,
+    explanation: 'easeOutBounce simulates a bouncing effect - like a ball bouncing and settling. It\'s perfect for playful UI feedback. The "Out" means the bounce happens at the end of the animation.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'In a keyframe animation, what happens between keyframes?',
+    options: [
+      'Nothing - the object jumps between states',
+      'Values are interpolated (tweened)',
+      'The animation pauses',
+      'Random values are used'
+    ],
+    correctIndex: 1,
+    explanation: 'Between keyframes, values are interpolated (tweened) to create smooth transitions. This is the core of animation - defining key states and letting the computer fill in the in-betweens.'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the code to apply easing to an animation:',
+    codeTemplate: 'const t = elapsed / duration;  // 0 to 1\nconst easedT = easeOutCubic(___);\nposition.x = lerp(startX, endX, easedT);',
+    answers: ['t'],
+    explanation: 'Easing functions transform the raw t value (0 to 1) into a curved t value. We pass in the linear t and get back an eased t that we then use for interpolation.'
+  }
+];
+---
+
+<ModuleLayout 
+  title="Interpolation & Animation"
+  moduleNumber="09"
+  projectName="Tween Engine"
+  prevModule={{ href: '/modules/08-randomness/', title: 'Randomness' }}
+  nextModule={{ href: '/modules/10-patterns/', title: 'Game Patterns' }}
+>
+  <!-- Lesson 1: Linear Interpolation -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. Linear Interpolation (Lerp)</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Linear interpolation</strong> (lerp) is the foundation of all animation. 
+      It smoothly blends between two values based on a parameter <code class="text-accent">t</code> that goes from 0 to 1.
+    </p>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-6 mb-6 text-center">
+      <code class="text-lg text-[#6c5ce7] font-bold">lerp(a, b, t) = a + (b - a) × t</code>
+    </div>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>When <code class="text-white">t = 0</code>, result is <code class="text-white">a</code> (start)</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>When <code class="text-white">t = 1</code>, result is <code class="text-white">b</code> (end)</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>When <code class="text-white">t = 0.5</code>, result is exactly halfway</span>
+      </li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeLerp} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Try it! Drag points A and B, and adjust the t slider:
+    </p>
+
+    <LerpDemo client:visible />
+
+    <div class="bg-bg-card rounded-xl p-6 mt-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeLerpVec2} /></pre>
+    </div>
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#00b894]">Key Insight:</strong> Lerp is incredibly versatile! Use it for positions, 
+        colors, sizes, volumes, camera zoom - anything that can be represented as numbers.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: Easing Functions -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Easing Functions</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Linear interpolation creates constant-speed motion, which can feel robotic. 
+      <strong class="text-white">Easing functions</strong> transform the <code class="text-accent">t</code> value 
+      to create more natural, appealing motion.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#e17055]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#e17055]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          Ease In
+        </h3>
+        <p class="text-sm text-text-secondary">Starts slow, accelerates. Like a car starting from rest.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          Ease Out
+        </h3>
+        <p class="text-sm text-text-secondary">Starts fast, decelerates. Like a car braking.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#74b9ff]">
+        <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#74b9ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          Ease In-Out
+        </h3>
+        <p class="text-sm text-text-secondary">Slow start, fast middle, slow end. Smooth and natural.</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeEasingBasic} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Select an easing function and see how it transforms the animation curve:
+    </p>
+
+    <EasingCurveGraph client:visible />
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#fdcb6e] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span><strong class="text-[#fdcb6e]">Pro Tip:</strong> The curve shows how output relates to input. 
+        A steep curve means fast motion; a flat curve means slow motion. The area under the curve always equals the same total distance!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Common Easing Curves -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. Common Easing Curves</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Different easing curves create different <em>feels</em>. Here are the most useful ones:
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">Power-based (Quad, Cubic, Quart, Quint)</h3>
+        <p class="text-sm text-text-secondary">Higher power = more dramatic acceleration. Quad (²) is subtle, Quint (⁵) is extreme.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">Elastic</h3>
+        <p class="text-sm text-text-secondary">Overshoots and oscillates like a spring. Great for wobbly, playful UI.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">Bounce</h3>
+        <p class="text-sm text-text-secondary">Simulates a ball bouncing. Perfect for items dropping into place.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4">
+        <h3 class="font-bold text-white mb-2">Back</h3>
+        <p class="text-sm text-text-secondary">Overshoots the target, then returns. Creates anticipation.</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeEasingCurves} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Compare all easing types side by side:
+    </p>
+
+    <EasingComparison client:visible />
+
+    <div class="bg-[#74b9ff]/10 border border-[#74b9ff]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#74b9ff] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+        <span><strong class="text-[#74b9ff]">Game Design Tip:</strong> Use <code>easeOut</code> for responsive UI (menus, buttons). 
+        Use <code>easeInOut</code> for camera movement. Use <code>elastic/bounce</code> sparingly for emphasis.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 4: Bezier Curves -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Bezier Curves</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Bezier curves</strong> create smooth paths using control points. They're everywhere - 
+      from vector graphics (fonts, logos) to animation paths and easing curves.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#6c5ce7]">
+        <h3 class="font-bold text-white mb-2">Quadratic Bezier</h3>
+        <p class="text-sm text-text-secondary">3 points: start, one control, end. Simple curved paths.</p>
+      </div>
+      <div class="bg-bg-card rounded-xl p-4 border-l-4 border-[#00b894]">
+        <h3 class="font-bold text-white mb-2">Cubic Bezier</h3>
+        <p class="text-sm text-text-secondary">4 points: start, two controls, end. S-curves, complex paths.</p>
+      </div>
+    </div>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeBezier} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Drag the control points to shape the curve:
+    </p>
+
+    <BezierEditor client:visible />
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#6c5ce7] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        <span><strong class="text-[#6c5ce7]">Fun Fact:</strong> CSS <code>cubic-bezier()</code> for transitions 
+        uses a cubic Bezier where P0=(0,0) and P3=(1,1), and you define P1 and P2 to create custom easing!</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 5: Splines -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Splines</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Bezier curves are great for simple paths, but what about complex routes through many points? 
+      <strong class="text-white">Splines</strong> connect multiple curve segments smoothly.
+    </p>
+
+    <p class="text-text-secondary mb-4">
+      The <strong class="text-white">Catmull-Rom spline</strong> is especially useful because the curve 
+      passes directly through every control point - perfect for defining paths!
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeSpline} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Create a path by dragging points. Double-click to add or remove points:
+    </p>
+
+    <SplineEditor client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#00b894] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span><strong class="text-[#00b894]">Use Cases:</strong> Camera rails, NPC patrol routes, racing game tracks, 
+        particle paths, handwriting simulation - anywhere you need smooth curves through waypoints.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 6: Keyframe Animation -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">6. Keyframe Animation</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Keyframe animation</strong> defines object states at specific times. 
+      The animation system interpolates all properties between keyframes automatically.
+    </p>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Position</strong> - where the object is</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Scale</strong> - how big it is</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Rotation</strong> - which way it's facing</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Color</strong> - what color it is</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">+ any numeric property!</strong></span>
+      </li>
+    </ul>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeKeyframe} /></pre>
+    </div>
+
+    <div class="bg-[#e17055]/10 border border-[#e17055]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#e17055] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+        <span><strong class="text-[#e17055]">Each segment can have its own easing!</strong> A character might 
+        ease-out when starting to walk, use linear motion during the walk, then ease-in when stopping.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 7: Chaining & Sequencing -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">7. Chaining & Sequencing</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Real animations chain multiple tweens together. An object might slide in, pulse, wait, then slide out - 
+      each with different timing and easing.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeChaining} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Watch a complete animation sequence with chained animations:
+    </p>
+
+    <CutsceneCreator client:visible />
+
+    <div class="bg-[#74b9ff]/10 border border-[#74b9ff]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary flex items-start gap-2">
+        <svg class="w-5 h-5 text-[#74b9ff] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+        <span><strong class="text-[#74b9ff]">Cutscene Magic:</strong> Game cutscenes are just sequences of chained animations! 
+        Camera moves, characters enter, dialogue appears, effects play - all timed and tweened.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Project: Tween Engine -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Project: Tween Engine
+    </h2>
+    
+    <p class="text-text-secondary mb-6">
+      The complete animation system! Watch position, scale, rotation, and color all animate 
+      through keyframes with different easing functions:
+    </p>
+
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Timeline scrubbing</strong> — drag to any point in the animation</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Easing selection</strong> — change how the animation feels</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Speed control</strong> — slow down to study the motion</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Live property display</strong> — see exact values as they change</span>
+      </li>
+      <li class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-[#00b894]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><strong class="text-white">Curve visualization</strong> — see the easing function in action</span>
+      </li>
+    </ul>
+
+    <TweenEngine client:visible />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-5 5"/><path d="m9.5 12.5 5 5"/><path d="M6 10h4"/><path d="M8 8v4"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>
+      Challenges
+    </h2>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Smooth Camera:</strong> Implement a camera that smoothly follows the player using lerp
+      </li>
+      <li>
+        <strong class="text-white">Custom Easing:</strong> Create your own easing function using cubic-bezier control points
+      </li>
+      <li>
+        <strong class="text-white">Path Following:</strong> Make an object follow a spline path at constant speed
+      </li>
+      <li>
+        <strong class="text-white">Animation Editor:</strong> Build a UI to create and edit keyframes visually
+      </li>
+      <li>
+        <strong class="text-white">Parallel Animations:</strong> Run multiple animations simultaneously on different objects
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formula Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+      Quick Reference
+    </h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">Core Formulas</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>lerp(a, b, t) = a + (b - a) × t</code></li>
+            <li><code>easeInQuad(t) = t²</code></li>
+            <li><code>easeOutQuad(t) = t(2 - t)</code></li>
+            <li><code>easeInOutQuad(t) = t&lt;0.5 ? 2t² : -1+(4-2t)t</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Easing Types</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code class="text-[#e17055]">easeIn</code> — Slow start, fast end</li>
+            <li><code class="text-[#00b894]">easeOut</code> — Fast start, slow end</li>
+            <li><code class="text-[#74b9ff]">easeInOut</code> — Slow both ends</li>
+            <li><code class="text-[#6c5ce7]">linear</code> — Constant speed</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Curve Types</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>Quadratic Bezier</code> — 3 control points</li>
+            <li><code>Cubic Bezier</code> — 4 control points</li>
+            <li><code>Catmull-Rom</code> — Passes through all points</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Animation Terms</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>Tween</code> — Single property animation</li>
+            <li><code>Keyframe</code> — Defined state at a time</li>
+            <li><code>Sequence</code> — Chained animations</li>
+            <li><code>Timeline</code> — Master time controller</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of interpolation and animation! Use number keys 1-4 to select answers.
+    </p>
+    <Quiz 
+      client:visible 
+      title="Interpolation & Animation Quiz" 
+      questions={quizQuestions} 
+    />
+  </section>
+</ModuleLayout>
