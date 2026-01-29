@@ -1,0 +1,345 @@
+---
+import ModuleLayout from '../../../layouts/ModuleLayout.astro';
+import ProjectileLauncher, { GravityVisualizer, TrajectoryCalculator } from '../../../components/modules/ProjectileLauncher';
+
+// Code snippets
+const codeKinematics = `// Position, Velocity, Acceleration
+let position = { x: 0, y: 0 };
+let velocity = { x: 10, y: -15 };  // Moving right and up
+let acceleration = { x: 0, y: 9.8 }; // Gravity pulls down
+
+// Each frame (dt = time step)
+function update(dt) {
+    // v = v + a * dt
+    velocity.x += acceleration.x * dt;
+    velocity.y += acceleration.y * dt;
+    
+    // p = p + v * dt
+    position.x += velocity.x * dt;
+    position.y += velocity.y * dt;
+}`;
+
+const codeGravity = `// Gravity is constant acceleration
+const GRAVITY = 9.8; // m/s² on Earth
+
+function applyGravity(object) {
+    // Only affects vertical velocity
+    object.vy += GRAVITY * dt;
+}
+
+// Different planets, different gravity:
+// Moon: 1.6 m/s²
+// Earth: 9.8 m/s²
+// Jupiter: 24.8 m/s²`;
+
+const codeProjectile = `// Projectile motion equations
+function calculateTrajectory(v0, angle) {
+    const radians = angle * Math.PI / 180;
+    
+    // Initial velocity components
+    const vx = v0 * Math.cos(radians);
+    const vy = v0 * Math.sin(radians);
+    
+    // Time of flight (when y returns to 0)
+    const tFlight = (2 * vy) / GRAVITY;
+    
+    // Maximum height
+    const maxHeight = (vy * vy) / (2 * GRAVITY);
+    
+    // Horizontal range
+    const range = vx * tFlight;
+    
+    return { vx, vy, tFlight, maxHeight, range };
+}`;
+
+const codeTrajectoryPrediction = `// Predict future positions for trajectory preview
+function predictPath(x, y, vx, vy, steps) {
+    const points = [];
+    
+    for (let i = 0; i < steps; i++) {
+        points.push({ x, y });
+        
+        // Apply physics
+        vy += GRAVITY;
+        x += vx;
+        y += vy;
+        
+        // Stop at ground
+        if (y > GROUND_Y) break;
+    }
+    
+    return points;
+}
+
+// Draw the predicted arc
+function drawTrajectory(ctx, points) {
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+}`;
+
+const codeDrag = `// Air resistance (drag force)
+// F_drag = 0.5 * ρ * v² * Cd * A
+// Simplified version:
+
+const DRAG_COEFFICIENT = 0.001;
+
+function applyDrag(object) {
+    const speed = Math.sqrt(
+        object.vx * object.vx + 
+        object.vy * object.vy
+    );
+    
+    // Drag force opposes motion
+    const dragX = -DRAG_COEFFICIENT * speed * object.vx;
+    const dragY = -DRAG_COEFFICIENT * speed * object.vy;
+    
+    object.vx += dragX;
+    object.vy += dragY;
+}
+
+// Even simpler: multiply velocity by decay
+object.vx *= 0.999;
+object.vy *= 0.999;`;
+---
+
+<ModuleLayout 
+  title="Physics Simulation"
+  moduleNumber="03"
+  projectName="Angry Birds Launcher"
+  prevModule={{ href: '/modules/02-trigonometry/', title: 'Trigonometry in Action' }}
+  nextModule={{ href: '/modules/04-collision/', title: 'Collision Detection' }}
+>
+  <!-- Lesson 1: Kinematics -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">1. Kinematics: The Language of Motion</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Kinematics</strong> describes motion using three key concepts:
+    </p>
+    
+    <ul class="list-none space-y-3 mb-6 text-text-secondary">
+      <li>
+        📍 <strong class="text-white">Position (p)</strong> — Where is the object? 
+        <code class="text-[#00b894]">(x, y)</code>
+      </li>
+      <li>
+        🚀 <strong class="text-white">Velocity (v)</strong> — How fast and in what direction? 
+        <code class="text-[#6c5ce7]">(vx, vy)</code>
+        <br/><span class="text-sm">Rate of change of position</span>
+      </li>
+      <li>
+        ⚡ <strong class="text-white">Acceleration (a)</strong> — How is velocity changing? 
+        <code class="text-[#e17055]">(ax, ay)</code>
+        <br/><span class="text-sm">Rate of change of velocity</span>
+      </li>
+    </ul>
+    
+    <p class="text-text-secondary mb-6">
+      The relationship is hierarchical: <strong>acceleration</strong> changes <strong>velocity</strong>, 
+      which changes <strong>position</strong>.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeKinematics} /></pre>
+    </div>
+
+    <div class="bg-[#6c5ce7]/10 border border-[#6c5ce7]/30 rounded-xl p-4 mb-6">
+      <p class="text-sm text-text-secondary">
+        <strong class="text-[#6c5ce7]">💡 Key Insight:</strong> In games, we often skip acceleration 
+        and directly set velocity (like when the player presses a key). But for physics-based 
+        movement, acceleration is essential!
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 2: Gravity -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">2. Gravity: The Universal Pull</h2>
+    
+    <p class="text-text-secondary mb-4">
+      <strong class="text-white">Gravity</strong> is a constant downward acceleration. 
+      On Earth, objects accelerate at approximately <code>9.8 m/s²</code>.
+    </p>
+    
+    <p class="text-text-secondary mb-4">
+      This means every second, an object's downward velocity increases by 9.8 meters per second.
+      After 1 second of falling: 9.8 m/s. After 2 seconds: 19.6 m/s. And so on.
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeGravity} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Try the interactive demo below. Change the gravity value and watch how it affects falling objects:
+    </p>
+
+    <GravityVisualizer client:visible />
+
+    <div class="bg-[#00b894]/10 border border-[#00b894]/30 rounded-xl p-4 mt-6">
+      <p class="text-sm text-text-secondary">
+        <strong class="text-[#00b894]">🎮 Game Design Tip:</strong> Real gravity (9.8 m/s²) often feels 
+        too slow in games. Most platformers use 2-3x Earth gravity for snappier, more responsive jumping!
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 3: Projectile Motion -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">3. Projectile Motion</h2>
+    
+    <p class="text-text-secondary mb-4">
+      When you throw something at an angle, it follows a <strong class="text-white">parabolic arc</strong>.
+      This is <strong class="text-white">projectile motion</strong> — the combination of:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li>➡️ <strong class="text-[#00b894]">Horizontal motion</strong> — Constant velocity (no acceleration)</li>
+      <li>⬇️ <strong class="text-[#e17055]">Vertical motion</strong> — Constant acceleration (gravity)</li>
+    </ul>
+    
+    <p class="text-text-secondary mb-4">
+      The initial velocity splits into horizontal and vertical components using trigonometry:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeProjectile} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      Experiment with the trajectory calculator below. Notice how the angle affects range and height:
+    </p>
+
+    <TrajectoryCalculator client:visible />
+  </section>
+
+  <!-- Lesson 4: Trajectory Prediction -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">4. Trajectory Prediction</h2>
+    
+    <p class="text-text-secondary mb-4">
+      In games like Angry Birds, showing the predicted path before launch is crucial for gameplay.
+      We simulate the physics ahead of time to draw the arc:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeTrajectoryPrediction} /></pre>
+    </div>
+
+    <p class="text-text-secondary mb-4">
+      The key insight: <strong class="text-white">run the same physics code</strong>, just without 
+      drawing or updating the real game state. Store the positions, then draw them as a dotted line.
+    </p>
+
+    <div class="bg-[#fdcb6e]/10 border border-[#fdcb6e]/30 rounded-xl p-4">
+      <p class="text-sm text-text-secondary">
+        <strong class="text-[#fdcb6e]">⚠️ Accuracy vs. Performance:</strong> More prediction steps = 
+        more accurate trajectory but more computation. Balance based on your game's needs. 
+        Usually 50-100 steps is enough.
+      </p>
+    </div>
+  </section>
+
+  <!-- Lesson 5: Drag & Friction -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">5. Friction & Air Drag (Advanced)</h2>
+    
+    <p class="text-text-secondary mb-4">
+      In the real world, objects don't move forever. <strong class="text-white">Friction</strong> and 
+      <strong class="text-white">air resistance</strong> slow things down.
+    </p>
+    
+    <p class="text-text-secondary mb-4">
+      The actual physics is complex (drag force depends on velocity squared, object shape, air density...), 
+      but we can simplify for games:
+    </p>
+
+    <div class="bg-bg-card rounded-xl p-6 mb-6">
+      <pre class="text-sm overflow-x-auto"><code set:text={codeDrag} /></pre>
+    </div>
+
+    <ul class="list-none space-y-2 mb-6 text-text-secondary">
+      <li>🌬️ <strong class="text-white">Air Drag:</strong> Multiply velocity by a decay factor (0.99-0.999) each frame</li>
+      <li>🏔️ <strong class="text-white">Ground Friction:</strong> Multiply horizontal velocity by friction (0.7-0.9) when touching ground</li>
+      <li>🏀 <strong class="text-white">Bounce Damping:</strong> Multiply velocity by damping (0.5-0.8) on collision</li>
+    </ul>
+  </section>
+
+  <!-- Project: Angry Birds Launcher -->
+  <section class="mb-16">
+    <h2 class="text-2xl font-bold text-accent mb-4">🎮 Project: Angry Birds Launcher</h2>
+    
+    <p class="text-text-secondary mb-6">
+      Put it all together! This game uses all the physics concepts:
+    </p>
+    
+    <ul class="list-none space-y-2 mb-8 text-text-secondary">
+      <li>✓ <strong class="text-white">Kinematics</strong> — Position, velocity, acceleration</li>
+      <li>✓ <strong class="text-white">Gravity</strong> — Constant downward acceleration</li>
+      <li>✓ <strong class="text-white">Projectile Motion</strong> — Parabolic trajectory</li>
+      <li>✓ <strong class="text-white">Trajectory Prediction</strong> — Dotted line preview</li>
+      <li>✓ <strong class="text-white">Friction & Drag</strong> — Energy loss on bounce</li>
+    </ul>
+
+    <ProjectileLauncher client:visible />
+  </section>
+
+  <!-- Challenges -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4">💪 Challenges</h2>
+    
+    <p class="text-text-secondary mb-4">
+      Ready for more? Try these extensions:
+    </p>
+    
+    <ol class="list-decimal list-inside space-y-3 text-text-secondary">
+      <li>
+        <strong class="text-white">Wind Effect:</strong> Add a constant horizontal force that affects trajectory
+      </li>
+      <li>
+        <strong class="text-white">Multiple Projectile Types:</strong> Different masses/sizes with different physics
+      </li>
+      <li>
+        <strong class="text-white">Explosive Projectiles:</strong> On impact, apply force to nearby targets
+      </li>
+      <li>
+        <strong class="text-white">Destructible Terrain:</strong> Projectiles can create craters in the ground
+      </li>
+      <li>
+        <strong class="text-white">Moving Targets:</strong> Targets that move or swing, requiring prediction
+      </li>
+    </ol>
+  </section>
+
+  <!-- Formulas Reference -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4">📐 Quick Reference</h2>
+    
+    <div class="bg-bg-card rounded-xl p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold text-white mb-2">Kinematic Equations</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>v = v₀ + at</code></li>
+            <li><code>x = x₀ + v₀t + ½at²</code></li>
+            <li><code>v² = v₀² + 2a(x - x₀)</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="font-bold text-white mb-2">Projectile Motion</h3>
+          <ul class="text-sm text-text-secondary space-y-1">
+            <li><code>vₓ = v₀ cos(θ)</code></li>
+            <li><code>vᵧ = v₀ sin(θ)</code></li>
+            <li><code>Range = v₀² sin(2θ) / g</code></li>
+            <li><code>Max Height = v₀² sin²(θ) / 2g</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</ModuleLayout>
