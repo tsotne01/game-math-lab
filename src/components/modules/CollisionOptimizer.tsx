@@ -15,6 +15,7 @@ interface Particle {
   radius: number;
   color: string;
   id: number;
+  collisionFlash?: number; // Frame counter for collision visual feedback
 }
 
 interface GridCell {
@@ -219,9 +220,12 @@ export default function CollisionOptimizer() {
   const [speed, setSpeed] = useState(3);
   const [method, setMethod] = useState<'naive' | 'grid' | 'quadtree'>('naive');
   const [showVisualization, setShowVisualization] = useState(true);
+  const [showTrails, setShowTrails] = useState(false);
   const [fps, setFps] = useState(60);
   const [collisionChecks, setCollisionChecks] = useState(0);
   const [actualCollisions, setActualCollisions] = useState(0);
+  
+  const trailsCanvasRef = useRef<HTMLCanvasElement>(null);
   
   const particlesRef = useRef<Particle[]>([]);
   const frameRef = useRef(0);
@@ -322,6 +326,8 @@ export default function CollisionOptimizer() {
             checks++;
             if (checkCircleCollision(particles[i], particles[j])) {
               resolveCollision(particles[i], particles[j]);
+              particles[i].collisionFlash = 10;
+              particles[j].collisionFlash = 10;
               collisions++;
             }
           }
@@ -352,6 +358,8 @@ export default function CollisionOptimizer() {
               checks++;
               if (checkCircleCollision(p, other)) {
                 resolveCollision(p, other);
+                p.collisionFlash = 10;
+                other.collisionFlash = 10;
                 collisions++;
               }
             }
@@ -380,9 +388,18 @@ export default function CollisionOptimizer() {
             checks++;
             if (checkCircleCollision(p, other)) {
               resolveCollision(p, other);
+              p.collisionFlash = 10;
+              other.collisionFlash = 10;
               collisions++;
             }
           }
+        }
+      }
+      
+      // Decay collision flashes
+      for (const p of particles) {
+        if (p.collisionFlash && p.collisionFlash > 0) {
+          p.collisionFlash--;
         }
       }
       
@@ -391,8 +408,12 @@ export default function CollisionOptimizer() {
         setActualCollisions(collisions);
       }
       
-      // Render
-      ctx.fillStyle = '#1a1a2e';
+      // Render - use semi-transparent clear for trails effect
+      if (showTrails) {
+        ctx.fillStyle = 'rgba(26, 26, 46, 0.15)';
+      } else {
+        ctx.fillStyle = '#1a1a2e';
+      }
       ctx.fillRect(0, 0, width, height);
       
       // Draw visualization
@@ -451,10 +472,29 @@ export default function CollisionOptimizer() {
         }
       }
       
-      // Draw particles
+      // Draw particles with collision flash effect
       for (const p of particles) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        
+        // Collision flash: bright white/yellow glow when recently collided
+        if (p.collisionFlash && p.collisionFlash > 0) {
+          const flashIntensity = p.collisionFlash / 10;
+          ctx.fillStyle = `rgba(255, 255, 255, ${flashIntensity * 0.8})`;
+          ctx.fill();
+          
+          // Glow ring
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius + 3, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(253, 203, 110, ${flashIntensity * 0.6})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Redraw particle on top
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        }
+        
         ctx.fillStyle = p.color;
         ctx.fill();
       }
@@ -466,7 +506,7 @@ export default function CollisionOptimizer() {
     update();
     
     return () => cancelAnimationFrame(animationId);
-  }, [isRunning, particleCount, method, showVisualization, initParticles]);
+  }, [isRunning, particleCount, method, showVisualization, showTrails, initParticles]);
   
   // Update particle speeds when slider changes
   useEffect(() => {
@@ -487,10 +527,10 @@ export default function CollisionOptimizer() {
   return (
     <div className="bg-bg-card rounded-xl p-4 sm:p-6">
       {/* Stats Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <div className="bg-bg-primary rounded-lg p-3 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+        <div className="bg-bg-primary rounded-lg p-3 text-center" role="status" aria-live="polite">
           <div className="flex items-center justify-center gap-1 text-text-secondary text-xs mb-1">
-            <Gauge className="w-3 h-3" />
+            <Gauge className="w-3 h-3" aria-hidden="true" />
             FPS
           </div>
           <div className={`text-xl font-bold ${fps >= 50 ? 'text-[#00b894]' : fps >= 30 ? 'text-[#fdcb6e]' : 'text-[#e17055]'}`}>
@@ -500,7 +540,7 @@ export default function CollisionOptimizer() {
         
         <div className="bg-bg-primary rounded-lg p-3 text-center">
           <div className="flex items-center justify-center gap-1 text-text-secondary text-xs mb-1">
-            <Circle className="w-3 h-3" />
+            <Circle className="w-3 h-3" aria-hidden="true" />
             Particles
           </div>
           <div className="text-xl font-bold text-white">{particleCount}</div>
@@ -508,7 +548,7 @@ export default function CollisionOptimizer() {
         
         <div className="bg-bg-primary rounded-lg p-3 text-center">
           <div className="flex items-center justify-center gap-1 text-text-secondary text-xs mb-1">
-            <Activity className="w-3 h-3" />
+            <Activity className="w-3 h-3" aria-hidden="true" />
             Checks
           </div>
           <div className="text-xl font-bold text-[#6c5ce7]">{collisionChecks.toLocaleString()}</div>
@@ -516,7 +556,15 @@ export default function CollisionOptimizer() {
         
         <div className="bg-bg-primary rounded-lg p-3 text-center">
           <div className="flex items-center justify-center gap-1 text-text-secondary text-xs mb-1">
-            <Zap className="w-3 h-3" />
+            <Zap className="w-3 h-3" aria-hidden="true" />
+            Collisions
+          </div>
+          <div className="text-xl font-bold text-[#fdcb6e]">{actualCollisions}</div>
+        </div>
+        
+        <div className="bg-bg-primary rounded-lg p-3 text-center">
+          <div className="flex items-center justify-center gap-1 text-text-secondary text-xs mb-1">
+            <Zap className="w-3 h-3" aria-hidden="true" />
             Saved
           </div>
           <div className={`text-xl font-bold ${method === 'naive' ? 'text-text-secondary' : 'text-[#00b894]'}`}>
@@ -526,9 +574,11 @@ export default function CollisionOptimizer() {
       </div>
       
       {/* Method Selector */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Collision detection method">
         <button
           onClick={() => setMethod('naive')}
+          aria-pressed={method === 'naive'}
+          aria-label="No optimization - O(N²) brute force collision detection"
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
             method === 'naive'
               ? 'bg-[#e17055] text-white'
@@ -541,6 +591,8 @@ export default function CollisionOptimizer() {
         
         <button
           onClick={() => setMethod('grid')}
+          aria-pressed={method === 'grid'}
+          aria-label="Spatial grid - check only neighboring cells"
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
             method === 'grid'
               ? 'bg-[#6c5ce7] text-white'
@@ -553,6 +605,8 @@ export default function CollisionOptimizer() {
         
         <button
           onClick={() => setMethod('quadtree')}
+          aria-pressed={method === 'quadtree'}
+          aria-label="Quadtree - recursive spatial partitioning"
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
             method === 'quadtree'
               ? 'bg-[#00b894] text-white'
@@ -571,7 +625,9 @@ export default function CollisionOptimizer() {
           width={800}
           height={500}
           className="w-full bg-bg-primary rounded-lg border border-white/10"
-          style={{ imageRendering: 'pixelated' }}
+          style={{ imageRendering: 'pixelated', aspectRatio: '8/5' }}
+          aria-label={`Collision simulation with ${particleCount} particles using ${method} detection method. ${fps} FPS, ${collisionChecks.toLocaleString()} collision checks per frame.`}
+          role="img"
         />
         
         {/* Method Info Overlay */}
@@ -597,10 +653,11 @@ export default function CollisionOptimizer() {
       {/* Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-sm text-text-secondary mb-2">
+          <label htmlFor="particle-count-slider" className="block text-sm text-text-secondary mb-2">
             Particle Count: {particleCount}
           </label>
           <input
+            id="particle-count-slider"
             type="range"
             min="100"
             max="2000"
@@ -614,14 +671,19 @@ export default function CollisionOptimizer() {
               }
             }}
             className="w-full accent-accent"
+            aria-label={`Particle count: ${particleCount}`}
+            aria-valuemin={100}
+            aria-valuemax={2000}
+            aria-valuenow={particleCount}
           />
         </div>
         
         <div>
-          <label className="block text-sm text-text-secondary mb-2">
+          <label htmlFor="speed-slider" className="block text-sm text-text-secondary mb-2">
             Speed: {speed.toFixed(1)}
           </label>
           <input
+            id="speed-slider"
             type="range"
             min="0.5"
             max="8"
@@ -629,6 +691,10 @@ export default function CollisionOptimizer() {
             value={speed}
             onChange={(e) => setSpeed(parseFloat(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Particle speed: ${speed.toFixed(1)}`}
+            aria-valuemin={0.5}
+            aria-valuemax={8}
+            aria-valuenow={speed}
           />
         </div>
       </div>
@@ -637,6 +703,7 @@ export default function CollisionOptimizer() {
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setIsRunning(!isRunning)}
+          aria-label={isRunning ? 'Pause simulation' : 'Play simulation'}
           className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-bg-primary rounded-lg text-sm font-medium transition-colors"
         >
           {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -645,6 +712,7 @@ export default function CollisionOptimizer() {
         
         <button
           onClick={reset}
+          aria-label="Reset simulation with new random particles"
           className="flex items-center gap-2 px-4 py-2 bg-bg-primary hover:bg-white/10 text-white rounded-lg text-sm font-medium transition-colors"
         >
           <RotateCcw className="w-4 h-4" />
@@ -653,10 +721,26 @@ export default function CollisionOptimizer() {
         
         <button
           onClick={() => setShowVisualization(!showVisualization)}
+          aria-label={showVisualization ? 'Hide spatial structure visualization' : 'Show spatial structure visualization'}
+          aria-pressed={showVisualization}
           className="flex items-center gap-2 px-4 py-2 bg-bg-primary hover:bg-white/10 text-white rounded-lg text-sm font-medium transition-colors"
         >
           {showVisualization ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           {showVisualization ? 'Hide Structure' : 'Show Structure'}
+        </button>
+        
+        <button
+          onClick={() => setShowTrails(!showTrails)}
+          aria-label={showTrails ? 'Disable particle trails' : 'Enable particle trails'}
+          aria-pressed={showTrails}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            showTrails
+              ? 'bg-[#74b9ff] text-bg-primary'
+              : 'bg-bg-primary hover:bg-white/10 text-white'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          {showTrails ? 'Trails On' : 'Trails Off'}
         </button>
       </div>
     </div>
@@ -814,25 +898,35 @@ export function GridVisualizerDemo() {
         width={700}
         height={350}
         className="w-full bg-bg-primary rounded-lg border border-white/10 cursor-crosshair"
+        style={{ aspectRatio: '2/1' }}
+        aria-label="Interactive grid partitioning visualization. Move mouse to see which cells would be checked for collisions."
+        role="img"
       />
       
       <div className="mt-4 flex flex-wrap gap-4">
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm text-text-secondary mb-2">
+          <label htmlFor="grid-cell-size" className="block text-sm text-text-secondary mb-2">
             Cell Size: {cellSize}px
           </label>
           <input
+            id="grid-cell-size"
             type="range"
             min="30"
             max="100"
             value={cellSize}
             onChange={(e) => setCellSize(parseInt(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Grid cell size: ${cellSize} pixels`}
+            aria-valuemin={30}
+            aria-valuemax={100}
+            aria-valuenow={cellSize}
           />
         </div>
         
         <button
           onClick={() => setShowQueryRadius(!showQueryRadius)}
+          aria-label={showQueryRadius ? 'Hide query radius circle' : 'Show query radius circle'}
+          aria-pressed={showQueryRadius}
           className="flex items-center gap-2 px-4 py-2 bg-bg-primary hover:bg-white/10 text-white rounded-lg text-sm font-medium transition-colors"
         >
           {showQueryRadius ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -986,25 +1080,34 @@ export function QuadtreeVisualizerDemo() {
         width={700}
         height={350}
         className="w-full bg-bg-primary rounded-lg border border-white/10 cursor-crosshair"
+        style={{ aspectRatio: '2/1' }}
+        aria-label="Interactive quadtree visualization. Click to add particles and watch the tree subdivide. Move mouse to query nearby particles."
+        role="img"
       />
       
       <div className="mt-4 flex flex-wrap gap-4">
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm text-text-secondary mb-2">
+          <label htmlFor="quadtree-query-radius" className="block text-sm text-text-secondary mb-2">
             Query Radius: {queryRadius}px
           </label>
           <input
+            id="quadtree-query-radius"
             type="range"
             min="30"
             max="200"
             value={queryRadius}
             onChange={(e) => setQueryRadius(parseInt(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Query radius: ${queryRadius} pixels`}
+            aria-valuemin={30}
+            aria-valuemax={200}
+            aria-valuenow={queryRadius}
           />
         </div>
         
         <button
           onClick={() => setParticles([])}
+          aria-label="Clear all particles from quadtree"
           className="flex items-center gap-2 px-4 py-2 bg-bg-primary hover:bg-white/10 text-white rounded-lg text-sm font-medium transition-colors"
         >
           <RotateCcw className="w-4 h-4" />
@@ -1032,10 +1135,11 @@ export function ComparisonDemo() {
   return (
     <div className="bg-bg-card rounded-xl p-4 sm:p-6">
       <div className="mb-6">
-        <label className="block text-sm text-text-secondary mb-2">
+        <label htmlFor="comparison-particle-count" className="block text-sm text-text-secondary mb-2">
           Particle Count: {particleCount}
         </label>
         <input
+          id="comparison-particle-count"
           type="range"
           min="100"
           max="2000"
@@ -1043,6 +1147,10 @@ export function ComparisonDemo() {
           value={particleCount}
           onChange={(e) => setParticleCount(parseInt(e.target.value))}
           className="w-full accent-accent"
+          aria-label={`Particle count for comparison: ${particleCount}`}
+          aria-valuemin={100}
+          aria-valuemax={2000}
+          aria-valuenow={particleCount}
         />
       </div>
       
@@ -1129,29 +1237,34 @@ export function NSquaredDemo() {
   return (
     <div className="bg-bg-card rounded-xl p-4 sm:p-6">
       <div className="mb-4">
-        <label className="block text-sm text-text-secondary mb-2">
+        <label htmlFor="n-squared-slider" className="block text-sm text-text-secondary mb-2">
           Number of objects (N): {n}
         </label>
         <input
+          id="n-squared-slider"
           type="range"
           min="2"
           max="50"
           value={n}
           onChange={(e) => setN(parseInt(e.target.value))}
           className="w-full accent-accent"
+          aria-label={`Number of objects: ${n}. Results in ${comparisons} collision checks.`}
+          aria-valuemin={2}
+          aria-valuemax={50}
+          aria-valuenow={n}
         />
       </div>
       
       <div className="grid grid-cols-3 gap-4 text-center">
-        <div className="bg-bg-primary rounded-lg p-4">
+        <div className="bg-bg-primary rounded-lg p-4" role="status">
           <div className="text-3xl font-bold text-white">{n}</div>
           <div className="text-sm text-text-secondary">Objects</div>
         </div>
-        <div className="bg-bg-primary rounded-lg p-4">
+        <div className="bg-bg-primary rounded-lg p-4" role="status">
           <div className="text-3xl font-bold text-[#e17055]">{comparisons}</div>
           <div className="text-sm text-text-secondary">Pair Checks</div>
         </div>
-        <div className="bg-bg-primary rounded-lg p-4">
+        <div className="bg-bg-primary rounded-lg p-4" role="status">
           <div className="text-3xl font-bold text-[#fdcb6e]">{n * n}</div>
           <div className="text-sm text-text-secondary">N² Growth</div>
         </div>
@@ -1163,7 +1276,7 @@ export function NSquaredDemo() {
       </div>
       
       {n >= 30 && (
-        <div className="mt-4 bg-[#e17055]/10 border border-[#e17055]/30 rounded-lg p-3">
+        <div className="mt-4 bg-[#e17055]/10 border border-[#e17055]/30 rounded-lg p-3" role="alert">
           <p className="text-sm text-[#e17055]">
             At {n} objects, you're doing {comparisons} checks per frame. At 60 FPS, that's {(comparisons * 60).toLocaleString()} checks per second!
           </p>
