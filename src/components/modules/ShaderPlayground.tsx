@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, useEffect, Suspense } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect, Suspense, type ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -605,8 +605,12 @@ function CodeEditor({ code, onChange, errors, label, shaderType }: CodeEditorPro
       <div className="flex items-center justify-between px-3 py-2 bg-[#0a0a0f] border-b border-[#2a2a3a]">
         <span className="text-xs text-text-secondary font-medium">{label}</span>
         {errors.filter(e => e.type === shaderType).length > 0 && (
-          <span className="text-xs text-red-400 flex items-center gap-1">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <span 
+            className="text-xs text-red-400 flex items-center gap-1"
+            role="alert"
+            id={`${shaderType}-errors`}
+          >
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -639,6 +643,8 @@ function CodeEditor({ code, onChange, errors, label, shaderType }: CodeEditorPro
           className="flex-1 bg-transparent text-[#d4d4d4] font-mono text-xs p-2 resize-none focus:outline-none leading-5"
           spellCheck={false}
           style={{ tabSize: 2 }}
+          aria-label={`${shaderType === 'vertex' ? 'Vertex' : 'Fragment'} shader code editor`}
+          aria-describedby={errors.filter(e => e.type === shaderType).length > 0 ? `${shaderType}-errors` : undefined}
         />
       </div>
     </div>
@@ -665,10 +671,10 @@ function UniformControls({ uniforms, values, onChange }: UniformControlsProps) {
   }
   
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4" role="group" aria-label="Shader uniform controls">
       {uniforms.map((uniform) => (
         <div key={uniform.name} className="space-y-1">
-          <label className="text-xs text-text-secondary block">{uniform.label}</label>
+          <label id={`label-${uniform.name}`} className="text-xs text-text-secondary block">{uniform.label}</label>
           {uniform.type === 'float' && (
             <div className="flex items-center gap-2">
               <input
@@ -679,8 +685,12 @@ function UniformControls({ uniforms, values, onChange }: UniformControlsProps) {
                 value={values[uniform.name] ?? uniform.default}
                 onChange={(e) => onChange(uniform.name, parseFloat(e.target.value))}
                 className="flex-1 accent-accent"
+                aria-labelledby={`label-${uniform.name}`}
+                aria-valuemin={uniform.min ?? 0}
+                aria-valuemax={uniform.max ?? 1}
+                aria-valuenow={values[uniform.name] ?? uniform.default}
               />
-              <span className="text-xs text-accent w-12 text-right font-mono">
+              <span className="text-xs text-accent w-12 text-right font-mono" aria-hidden="true">
                 {(values[uniform.name] ?? uniform.default).toFixed(2)}
               </span>
             </div>
@@ -692,17 +702,18 @@ function UniformControls({ uniforms, values, onChange }: UniformControlsProps) {
                 value={values[uniform.name] ?? uniform.default}
                 onChange={(e) => onChange(uniform.name, e.target.value)}
                 className="w-10 h-8 rounded border-0 cursor-pointer"
+                aria-labelledby={`label-${uniform.name}`}
               />
-              <span className="text-xs text-text-secondary font-mono">
+              <span className="text-xs text-text-secondary font-mono" aria-hidden="true">
                 {values[uniform.name] ?? uniform.default}
               </span>
             </div>
           )}
           {uniform.type === 'vec3' && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby={`label-${uniform.name}`}>
               {['x', 'y', 'z'].map((axis, i) => (
                 <div key={axis} className="flex flex-col">
-                  <span className="text-[10px] text-text-secondary mb-1">{axis.toUpperCase()}</span>
+                  <span id={`${uniform.name}-${axis}`} className="text-[10px] text-text-secondary mb-1">{axis.toUpperCase()}</span>
                   <input
                     type="number"
                     step="0.1"
@@ -714,6 +725,7 @@ function UniformControls({ uniforms, values, onChange }: UniformControlsProps) {
                       onChange(uniform.name, newVal);
                     }}
                     className="w-full bg-bg-secondary px-2 py-1 rounded text-xs font-mono text-white"
+                    aria-label={`${uniform.label} ${axis.toUpperCase()} component`}
                   />
                 </div>
               ))}
@@ -796,7 +808,7 @@ ${JSON.stringify(uniformValues, null, 2)}`;
     URL.revokeObjectURL(url);
   }, [vertexShader, fragmentShader, uniformValues, activePreset]);
   
-  const geometries: Array<{ value: typeof geometry; label: string; icon: JSX.Element }> = [
+  const geometries: Array<{ value: typeof geometry; label: string; icon: ReactNode }> = [
     { value: 'sphere', label: 'Sphere', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg> },
     { value: 'box', label: 'Box', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21 16-9 5-9-5V8l9-5 9 5v8z"/><path d="m3.27 6.96 8.73 4.84 8.73-4.84"/><path d="M12 22.08V11.8"/></svg> },
     { value: 'torus', label: 'Torus', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="4" ry="10"/></svg> },
@@ -819,8 +831,9 @@ ${JSON.stringify(uniformValues, null, 2)}`;
         <button
           onClick={handleExport}
           className="flex items-center gap-1 px-3 py-1.5 bg-accent/20 text-accent rounded text-sm hover:bg-accent/30 transition-colors"
+          aria-label="Export shader code as GLSL file"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
@@ -830,7 +843,7 @@ ${JSON.stringify(uniformValues, null, 2)}`;
       </div>
       
       {/* Preset Selector */}
-      <div className="flex flex-wrap gap-2 p-4 bg-bg-secondary/50 border-b border-border">
+      <div className="flex flex-wrap gap-2 p-4 bg-bg-secondary/50 border-b border-border" role="group" aria-label="Shader presets">
         {SHADER_PRESETS.map((preset, i) => (
           <button
             key={preset.name}
@@ -840,6 +853,8 @@ ${JSON.stringify(uniformValues, null, 2)}`;
                 ? 'bg-accent text-black font-medium' 
                 : 'bg-bg-card text-text-secondary hover:text-white border border-border'
             }`}
+            aria-pressed={activePreset === i}
+            aria-label={`${preset.name} shader preset: ${preset.description}`}
           >
             {preset.name}
           </button>
