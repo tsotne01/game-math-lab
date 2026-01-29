@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 
 interface CodeBlockProps {
   code: string;
@@ -7,53 +7,73 @@ interface CodeBlockProps {
 
 // Simple syntax highlighting for JavaScript/TypeScript
 function highlightJS(code: string): string {
-  // Keywords
-  const keywords = /\b(const|let|var|function|return|if|else|for|while|class|new|typeof|instanceof|import|export|from|default|async|await|try|catch|throw|this)\b/g;
-  
-  // Strings
-  const strings = /(["'`])(?:(?!\1|\\).|\\.)*\1/g;
-  
-  // Numbers
-  const numbers = /\b(\d+\.?\d*)\b/g;
-  
-  // Comments
-  const comments = /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm;
-  
-  // Function calls
-  const functions = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
-  
-  // Properties/methods after dot
-  const properties = /\.([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
-  
-  // Apply highlighting (order matters!)
-  let highlighted = code
-    // Escape HTML first
+  // Escape HTML first
+  let escaped = code
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    // Comments (green)
-    .replace(comments, '<span class="text-[#6a9955]">$1</span>')
-    // Strings (orange)
-    .replace(strings, '<span class="text-[#ce9178]">$&</span>')
-    // Numbers (light green)
-    .replace(numbers, '<span class="text-[#b5cea8]">$1</span>')
-    // Keywords (purple)
-    .replace(keywords, '<span class="text-[#c586c0]">$1</span>')
-    // Functions (yellow)
-    .replace(functions, '<span class="text-[#dcdcaa]">$1</span>(')
-    // Properties (cyan)
-    .replace(properties, '.<span class="text-[#9cdcfe]">$1</span>');
+    .replace(/>/g, '&gt;');
   
-  return highlighted;
+  // Store strings temporarily to avoid highlighting inside them
+  const stringPlaceholders: string[] = [];
+  escaped = escaped.replace(/(["'`])(?:(?!\1|\\).|\\.)*\1/g, (match) => {
+    stringPlaceholders.push(`<span class="text-[#ce9178]">${match}</span>`);
+    return `__STRING_${stringPlaceholders.length - 1}__`;
+  });
+  
+  // Store comments temporarily
+  const commentPlaceholders: string[] = [];
+  escaped = escaped.replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, (match) => {
+    commentPlaceholders.push(`<span class="text-[#6a9955]">${match}</span>`);
+    return `__COMMENT_${commentPlaceholders.length - 1}__`;
+  });
+  
+  // Keywords (purple)
+  escaped = escaped.replace(
+    /\b(const|let|var|function|return|if|else|for|while|class|new|typeof|instanceof|import|export|from|default|async|await|try|catch|throw|this|true|false|null|undefined)\b/g,
+    '<span class="text-[#c586c0]">$1</span>'
+  );
+  
+  // Numbers (light green) - be careful not to match inside words
+  escaped = escaped.replace(
+    /\b(\d+\.?\d*)\b/g,
+    '<span class="text-[#b5cea8]">$1</span>'
+  );
+  
+  // Function names before parentheses (yellow)
+  escaped = escaped.replace(
+    /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g,
+    '<span class="text-[#dcdcaa]">$1</span>('
+  );
+  
+  // Properties/methods after dot (cyan)
+  escaped = escaped.replace(
+    /\.([a-zA-Z_$][a-zA-Z0-9_$]*)/g,
+    '.<span class="text-[#9cdcfe]">$1</span>'
+  );
+  
+  // Restore comments
+  commentPlaceholders.forEach((placeholder, i) => {
+    escaped = escaped.replace(`__COMMENT_${i}__`, placeholder);
+  });
+  
+  // Restore strings
+  stringPlaceholders.forEach((placeholder, i) => {
+    escaped = escaped.replace(`__STRING_${i}__`, placeholder);
+  });
+  
+  return escaped;
 }
 
 export default function CodeBlock({ code, language = 'javascript' }: CodeBlockProps) {
-  const codeRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    if (codeRef.current && language === 'javascript') {
-      codeRef.current.innerHTML = highlightJS(code);
+  const highlightedCode = useMemo(() => {
+    if (language === 'javascript' || language === 'typescript' || language === 'js' || language === 'ts') {
+      return highlightJS(code);
     }
+    // For other languages, just escape HTML
+    return code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }, [code, language]);
 
   return (
@@ -68,11 +88,9 @@ export default function CodeBlock({ code, language = 'javascript' }: CodeBlockPr
       </div>
       <pre className="p-4 overflow-x-auto text-sm leading-relaxed">
         <code 
-          ref={codeRef}
           className="font-mono text-[#d4d4d4]"
-        >
-          {code}
-        </code>
+          dangerouslySetInnerHTML={{ __html: highlightedCode }}
+        />
       </pre>
     </div>
   );
