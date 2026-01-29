@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { MousePointer } from 'lucide-react';
 
 // Vector utility functions
 const Vec = {
@@ -177,8 +178,8 @@ export default function VectorVisualizer() {
         role="img"
         aria-label="Interactive vector visualization. Move mouse or touch to see vector properties."
       />
-      <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        🖱️ Move your mouse (or touch) to see the vector from center to cursor
+      <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
+        <MousePointer className="w-4 h-4 inline" /> Move your mouse (or touch) to see the vector from center to cursor
       </p>
     </div>
   );
@@ -324,8 +325,8 @@ export function DotProductVisualizer() {
         role="img"
         aria-label="Interactive dot product visualization. Move to change vector angle."
       />
-      <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        🖱️ Move mouse (or touch) to change the pink vector. Watch the dot product value.
+      <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
+        <MousePointer className="w-4 h-4 inline" /> Move mouse (or touch) to change the pink vector. Watch the dot product value.
       </p>
     </div>
   );

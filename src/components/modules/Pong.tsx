@@ -373,8 +373,8 @@ export default function Pong() {
           Reset
         </button>
       </div>
-      <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        ⬆️⬇️ Arrow keys, W/S, or tap top/bottom to move. First to {WINNING_SCORE} wins!
+      <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
+        <ArrowUp className="w-4 h-4 inline" /><ArrowDown className="w-4 h-4 inline" /> Arrow keys, W/S, or tap top/bottom to move. First to {WINNING_SCORE} wins!
       </p>
     </div>
   );

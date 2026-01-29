@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { Target } from 'lucide-react';
 
 // ============== PHYSICS CONSTANTS ==============
 const GRAVITY = 0.5;
@@ -593,8 +594,8 @@ export default function ProjectileLauncher() {
           Reset Game
         </button>
       </div>
-      <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        🎯 Drag from the slingshot to aim and release to fire!
+      <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
+        <Target className="w-4 h-4 inline" /> Drag from the slingshot to aim and release to fire!
       </p>
     </div>
   );

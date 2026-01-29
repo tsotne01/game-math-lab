@@ -106,6 +106,66 @@ function applyDrag(object) {
 // Even simpler: multiply velocity by decay
 object.vx *= 0.999;
 object.vy *= 0.999;`;
+
+// Quiz questions for Module 03
+const quizQuestions = [
+  {
+    type: 'multiple-choice' as const,
+    question: 'In the kinematic equation v = v₀ + at, what does "a" represent?',
+    options: ['Position', 'Initial velocity', 'Acceleration', 'Time'],
+    correctIndex: 2,
+    explanation: 'In this equation, "a" is acceleration—the rate at which velocity changes over time. Multiplying acceleration by time gives you how much the velocity has changed.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'When a projectile is launched at an angle, what happens to its horizontal velocity (ignoring air resistance)?',
+    options: ['It increases due to gravity', 'It decreases due to gravity', 'It stays constant', 'It becomes zero at the peak'],
+    correctIndex: 2,
+    explanation: 'Gravity only acts vertically (downward), so it doesn\'t affect horizontal motion. The horizontal velocity (vx) remains constant throughout the flight!'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'At what point during a projectile\'s flight does it reach maximum height?',
+    options: ['When horizontal velocity is zero', 'When vertical velocity is zero', 'When total velocity is maximum', 'Halfway through the flight time'],
+    correctIndex: 1,
+    explanation: 'At maximum height, the projectile stops rising and is about to fall. This is when vertical velocity (vy) = 0. The horizontal velocity is still present!'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Complete the code to apply gravity to a projectile each frame:',
+    codeTemplate: 'const GRAVITY = 9.8;\nprojectile.___ += GRAVITY * dt;',
+    answers: ['vy'],
+    explanation: 'Gravity is a vertical acceleration, so it only affects vertical velocity (vy). We add GRAVITY × dt to vy each frame to simulate falling.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'For a projectile launched from ground level, what launch angle gives maximum horizontal range?',
+    options: ['30°', '45°', '60°', '90°'],
+    correctIndex: 1,
+    explanation: '45° gives the optimal balance between horizontal and vertical velocity components. The range formula is R = v₀²sin(2θ)/g, which is maximized when 2θ = 90°, meaning θ = 45°.'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'What is the formula for maximum height of a projectile?',
+    options: ['h = v₀²/g', 'h = v₀²sin²(θ)/(2g)', 'h = v₀·t', 'h = v₀²cos²(θ)/(2g)'],
+    correctIndex: 1,
+    explanation: 'Maximum height h = vy²/(2g), where vy = v₀·sin(θ). Substituting gives h = v₀²sin²(θ)/(2g). Only the vertical component matters for height!'
+  },
+  {
+    type: 'code-completion' as const,
+    question: 'Split initial velocity into components for a projectile launched at angle θ:',
+    codeTemplate: 'const vx = v0 * Math.cos(___);\nconst vy = v0 * Math.sin(theta);',
+    answers: ['theta'],
+    explanation: 'Use cos(θ) for horizontal (x) and sin(θ) for vertical (y) velocity components. Remember: cos for x, sin for y!'
+  },
+  {
+    type: 'multiple-choice' as const,
+    question: 'If you double the initial velocity of a projectile (same angle), what happens to the maximum range?',
+    options: ['It doubles', 'It quadruples (4×)', 'It stays the same', 'It increases by √2'],
+    correctIndex: 1,
+    explanation: 'Range R = v₀²sin(2θ)/g. Since v₀ is squared, doubling velocity means 2² = 4× the range. This is why a small increase in launch power makes a big difference!'
+  }
+];
 ---
 
 <ModuleLayout 
@@ -357,5 +417,21 @@ object.vy *= 0.999;`;
         </div>
       </div>
     </div>
+  </section>
+
+  <!-- Quiz -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold text-accent mb-4 flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Knowledge Check
+    </h2>
+    <p class="text-text-secondary mb-6">
+      Test your understanding of physics simulation concepts! Use number keys 1-4 to select answers.
+    </p>
+    <Quiz 
+      client:visible 
+      title="Physics Simulation Quiz" 
+      questions={quizQuestions} 
+    />
   </section>
 </ModuleLayout>

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react';
 
 // Game constants
 const SHIP_SIZE = 20;
@@ -500,8 +501,8 @@ export default function Asteroids() {
           {gameState === 'playing' ? 'Restart' : gameState === 'gameover' ? 'Play Again' : 'Start Game'}
         </button>
       </div>
-      <p className="text-center text-sm text-[#a0a0b0] mt-3">
-        ← → Rotate | ↑ Thrust | SPACE Shoot | Ship wraps around edges!
+      <p className="text-center text-sm text-[#a0a0b0] mt-3 flex items-center justify-center gap-1">
+        <ArrowLeft className="w-4 h-4 inline" /> <ArrowRight className="w-4 h-4 inline" /> Rotate | <ArrowUp className="w-4 h-4 inline" /> Thrust | SPACE Shoot | Ship wraps around edges!
       </p>
     </div>
   );
