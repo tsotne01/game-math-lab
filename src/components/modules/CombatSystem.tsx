@@ -2,7 +2,8 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { 
   Play, Pause, RotateCcw, Eye, EyeOff, 
   Swords, Zap, 
-  Circle, ArrowRight, ChevronLeft, ChevronRight 
+  Circle, ArrowRight, ChevronLeft, ChevronRight,
+  ArrowUp, Shield
 } from 'lucide-react';
 
 // ============ TYPES ============
@@ -84,6 +85,10 @@ export default function CombatSystem() {
   const [gameState, setGameState] = useState<'idle' | 'playing' | 'victory' | 'defeat'>('idle');
   const [showHitboxes, setShowHitboxes] = useState(true);
   const [showStateInfo, setShowStateInfo] = useState(true);
+  const [screenShake, setScreenShake] = useState({ x: 0, y: 0 });
+  const [hitFlash, setHitFlash] = useState(0);
+  const [comboDisplay, setComboDisplay] = useState({ count: 0, timer: 0 });
+  const [announceState, setAnnounceState] = useState(''); // For screen reader
   const keysRef = useRef<Set<string>>(new Set());
   const gameRef = useRef<{
     player: Character;
@@ -93,6 +98,37 @@ export default function CombatSystem() {
 
   const width = 700;
   const height = 350;
+
+  // Screen shake effect
+  const triggerScreenShake = useCallback((intensity: number) => {
+    let shakeFrames = 8;
+    const shake = () => {
+      if (shakeFrames > 0) {
+        setScreenShake({
+          x: (Math.random() - 0.5) * intensity * (shakeFrames / 8),
+          y: (Math.random() - 0.5) * intensity * (shakeFrames / 8),
+        });
+        shakeFrames--;
+        requestAnimationFrame(shake);
+      } else {
+        setScreenShake({ x: 0, y: 0 });
+      }
+    };
+    shake();
+  }, []);
+
+  // Hit flash effect
+  const triggerHitFlash = useCallback(() => {
+    setHitFlash(1);
+    setTimeout(() => setHitFlash(0), 80);
+  }, []);
+
+  // Combo display update
+  const updateCombo = useCallback((count: number) => {
+    if (count > 1) {
+      setComboDisplay({ count, timer: 60 });
+    }
+  }, []);
 
   const createPlayer = useCallback((): Character => ({
     x: 150,
@@ -474,9 +510,15 @@ export default function CombatSystem() {
           // Knockback
           enemy.x += player.direction === 'right' ? 20 : -20;
           
+          // Visual effects
+          triggerScreenShake(player.state === 'attack_heavy' ? 12 : 6);
+          triggerHitFlash();
+          updateCombo(player.comboCount);
+          
           if (enemy.health <= 0) {
             enemy.health = 0;
             transitionState(enemy, 'death' as EnemyState);
+            setAnnounceState('Enemy defeated! Victory!');
           }
         }
       }
@@ -489,10 +531,13 @@ export default function CombatSystem() {
             // Blocked - reduced damage and no stun
             player.health -= Math.floor(enemy.hitbox.damage * 0.2);
             player.invincible = 10;
+            setAnnounceState('Attack blocked!');
           } else {
             player.health -= enemy.hitbox.damage;
             player.invincible = 20;
             transitionState(player, 'hit');
+            triggerScreenShake(8);
+            setAnnounceState('Player hit!');
             
             // Knockback
             player.x += enemy.direction === 'right' ? 15 : -15;
@@ -501,6 +546,7 @@ export default function CombatSystem() {
           if (player.health <= 0) {
             player.health = 0;
             transitionState(player, 'death');
+            setAnnounceState('Player defeated. Game over.');
           }
         }
       }
@@ -582,6 +628,41 @@ export default function CombatSystem() {
         ctx.strokeRect(char.hurtbox.x, char.hurtbox.y, char.hurtbox.width, char.hurtbox.height);
         ctx.setLineDash([]);
       }
+      
+      // Visual state indicator above character
+      const stateColors: Record<string, string> = {
+        idle: '#6c5ce7',
+        walk: '#00b894',
+        jump: '#74b9ff',
+        attack_light: '#fdcb6e',
+        attack_heavy: '#e17055',
+        attack: '#e17055',
+        hit: '#ff7675',
+        block: '#55efc4',
+        death: '#636e72',
+        patrol: '#00b894',
+        chase: '#fdcb6e',
+      };
+      
+      const stateColor = stateColors[char.state] || '#6c5ce7';
+      const indicatorY = y - h - 15;
+      
+      // State pill indicator
+      ctx.fillStyle = stateColor;
+      const stateText = char.state.replace('_', ' ').toUpperCase();
+      ctx.font = 'bold 9px Inter, sans-serif';
+      const textWidth = ctx.measureText(stateText).width;
+      
+      // Draw pill background
+      ctx.beginPath();
+      ctx.roundRect(x - textWidth/2 - 6, indicatorY - 8, textWidth + 12, 14, 7);
+      ctx.fill();
+      
+      // Draw state text
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(stateText, x, indicatorY);
+      ctx.textAlign = 'left';
     };
 
     const drawHealthBar = (char: Character, x: number, y: number, label: string) => {
@@ -632,9 +713,19 @@ export default function CombatSystem() {
     };
 
     const render = () => {
+      // Apply screen shake
+      ctx.save();
+      ctx.translate(screenShake.x, screenShake.y);
+      
       // Background
       ctx.fillStyle = '#0a0a0f';
       ctx.fillRect(0, 0, width, height);
+      
+      // Hit flash overlay
+      if (hitFlash > 0) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(0, 0, width, height);
+      }
       
       // Ground
       ctx.fillStyle = '#1a1a24';
@@ -682,6 +773,21 @@ export default function CombatSystem() {
         drawHealthBar(enemy, width - 170, 35, 'ENEMY');
       }
 
+      // Draw combo counter (big, center-top)
+      if (comboDisplay.timer > 0 && comboDisplay.count > 1) {
+        const alpha = Math.min(1, comboDisplay.timer / 30);
+        const scale = 1 + (60 - comboDisplay.timer) * 0.01;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.font = `bold ${32 * scale}px Inter, sans-serif`;
+        ctx.fillStyle = '#fdcb6e';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${comboDisplay.count} HIT COMBO!`, width / 2, 80);
+        ctx.textAlign = 'left';
+        ctx.restore();
+        setComboDisplay(prev => ({ ...prev, timer: prev.timer - 1 }));
+      }
+
       // Overlay for non-playing states
       if (gameState !== 'playing') {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -707,6 +813,9 @@ export default function CombatSystem() {
         ctx.textAlign = 'left';
       }
 
+      // Restore from screen shake
+      ctx.restore();
+
       animationId = requestAnimationFrame(render);
     };
 
@@ -715,21 +824,116 @@ export default function CombatSystem() {
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [gameState, showHitboxes, showStateInfo, transitionState]);
+  }, [gameState, showHitboxes, showStateInfo, transitionState, screenShake, hitFlash, comboDisplay, triggerScreenShake, triggerHitFlash, updateCombo]);
+
+  // Touch control handlers
+  const handleTouchStart = useCallback((action: string) => {
+    keysRef.current.add(action);
+    if (action === 'z' || action === 'x') {
+      if (gameRef.current) {
+        gameRef.current.player.inputBuffer.push(action);
+        if (gameRef.current.player.inputBuffer.length > 5) {
+          gameRef.current.player.inputBuffer.shift();
+        }
+      }
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((action: string) => {
+    keysRef.current.delete(action);
+  }, []);
 
   return (
     <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
+      {/* Screen reader announcements */}
+      <div 
+        role="status" 
+        aria-live="polite" 
+        aria-atomic="true" 
+        className="sr-only"
+      >
+        {announceState}
+      </div>
+      
       <canvas
         ref={canvasRef}
-        className="block mx-auto rounded-lg"
+        className="block mx-auto rounded-lg max-w-full"
         style={{ width, height }}
         tabIndex={0}
+        role="img"
+        aria-label="Combat system game canvas. Use arrow keys to move, Z for light attack, X for heavy attack, C to block."
       />
+      
+      {/* Touch Controls for Mobile */}
+      <div className="md:hidden mt-4">
+        <div className="flex justify-between items-center px-2">
+          {/* D-Pad Left Side */}
+          <div className="flex flex-col items-center gap-1">
+            <button
+              className="w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center active:bg-[#3a3a4a] touch-none"
+              onTouchStart={() => handleTouchStart('arrowup')}
+              onTouchEnd={() => handleTouchEnd('arrowup')}
+              aria-label="Jump"
+            >
+              <ArrowUp className="w-6 h-6 text-[#74b9ff]" />
+            </button>
+            <div className="flex gap-1">
+              <button
+                className="w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center active:bg-[#3a3a4a] touch-none"
+                onTouchStart={() => handleTouchStart('arrowleft')}
+                onTouchEnd={() => handleTouchEnd('arrowleft')}
+                aria-label="Move left"
+              >
+                <ChevronLeft className="w-6 h-6 text-white" />
+              </button>
+              <button
+                className="w-12 h-12 bg-[#2a2a3a] rounded-lg flex items-center justify-center active:bg-[#3a3a4a] touch-none"
+                onTouchStart={() => handleTouchStart('arrowright')}
+                onTouchEnd={() => handleTouchEnd('arrowright')}
+                aria-label="Move right"
+              >
+                <ChevronRight className="w-6 h-6 text-white" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Action Buttons Right Side */}
+          <div className="flex gap-2">
+            <button
+              className="w-14 h-14 bg-[#00b894] rounded-full flex items-center justify-center active:bg-[#00a085] touch-none"
+              onTouchStart={() => handleTouchStart('c')}
+              onTouchEnd={() => handleTouchEnd('c')}
+              aria-label="Block"
+            >
+              <Shield className="w-6 h-6 text-white" />
+            </button>
+            <div className="flex flex-col gap-1">
+              <button
+                className="w-14 h-10 bg-[#6c5ce7] rounded-lg flex items-center justify-center active:bg-[#8677ed] touch-none font-bold text-white"
+                onTouchStart={() => handleTouchStart('z')}
+                onTouchEnd={() => handleTouchEnd('z')}
+                aria-label="Light attack"
+              >
+                <Zap className="w-5 h-5" />
+              </button>
+              <button
+                className="w-14 h-10 bg-[#e17055] rounded-lg flex items-center justify-center active:bg-[#d65f43] touch-none font-bold text-white"
+                onTouchStart={() => handleTouchStart('x')}
+                onTouchEnd={() => handleTouchEnd('x')}
+                aria-label="Heavy attack"
+              >
+                <Swords className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       
       <div className="flex flex-wrap justify-center gap-3 mt-4">
         <button
           onClick={startGame}
           className="px-6 py-2 bg-[#6c5ce7] text-white font-semibold rounded-lg hover:bg-[#8677ed] transition-colors flex items-center gap-2"
+          aria-label={gameState === 'playing' ? 'Restart game' : 'Start fight'}
         >
           {gameState === 'playing' ? <RotateCcw className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           {gameState === 'playing' ? 'Restart' : 'Start Fight'}
@@ -740,6 +944,8 @@ export default function CombatSystem() {
           className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
             showHitboxes ? 'bg-[#00b894] text-white' : 'bg-[#2a2a3a] text-[#a0a0b0]'
           }`}
+          aria-pressed={showHitboxes}
+          aria-label="Toggle hitbox visualization"
         >
           {showHitboxes ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
           Hitboxes
@@ -750,13 +956,15 @@ export default function CombatSystem() {
           className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
             showStateInfo ? 'bg-[#fdcb6e] text-[#1a1a24]' : 'bg-[#2a2a3a] text-[#a0a0b0]'
           }`}
+          aria-pressed={showStateInfo}
+          aria-label="Toggle state information display"
         >
           <Circle className="w-4 h-4" />
           State Info
         </button>
       </div>
       
-      <div className="mt-4 text-center text-sm text-[#a0a0b0]">
+      <div className="mt-4 text-center text-sm text-[#a0a0b0] hidden md:block">
         <p className="flex items-center justify-center gap-2 flex-wrap">
           <span className="flex items-center gap-1"><ChevronLeft className="w-4 h-4" /><ChevronRight className="w-4 h-4" /> Move</span>
           <span className="text-[#4a4a5a]">|</span>
@@ -943,9 +1151,12 @@ export function StateMachineVisualizer() {
     <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
       <canvas
         ref={canvasRef}
-        className="block mx-auto rounded-lg cursor-pointer"
+        className="block mx-auto rounded-lg cursor-pointer max-w-full"
         style={{ width, height }}
         onClick={handleCanvasClick}
+        role="img"
+        aria-label="State machine visualizer showing character states and transitions. Click on states to see their transitions."
+        tabIndex={0}
       />
       
       {selectedState && (
@@ -1133,14 +1344,17 @@ export function HitboxVisualizer() {
     <div className="my-8 bg-[#1a1a24] rounded-xl p-4">
       <canvas
         ref={canvasRef}
-        className="block mx-auto rounded-lg"
+        className="block mx-auto rounded-lg max-w-full"
         style={{ width, height }}
+        role="img"
+        aria-label={`Hitbox visualizer showing ${attackType} attack frame data. Current frame: ${frame + 1} of ${totalFrames}. Phase: ${frame < attack.startup ? 'startup' : frame < attack.startup + attack.active ? 'active' : 'recovery'}.`}
       />
       
       <div className="flex flex-wrap justify-center gap-3 mt-4">
         <button
           onClick={() => setIsPlaying(!isPlaying)}
           className="px-4 py-2 bg-[#6c5ce7] text-white font-semibold rounded-lg hover:bg-[#8677ed] transition-colors flex items-center gap-2"
+          aria-label={isPlaying ? 'Pause animation' : 'Play animation'}
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           {isPlaying ? 'Pause' : 'Play'}
@@ -1151,6 +1365,8 @@ export function HitboxVisualizer() {
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
             attackType === 'light' ? 'bg-[#6c5ce7] text-white' : 'bg-[#2a2a3a] text-[#a0a0b0]'
           }`}
+          aria-pressed={attackType === 'light'}
+          aria-label="View light attack frame data (20 frames)"
         >
           <Zap className="w-4 h-4 inline mr-1" /> Light (20f)
         </button>
@@ -1160,6 +1376,8 @@ export function HitboxVisualizer() {
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
             attackType === 'heavy' ? 'bg-[#e17055] text-white' : 'bg-[#2a2a3a] text-[#a0a0b0]'
           }`}
+          aria-pressed={attackType === 'heavy'}
+          aria-label="View heavy attack frame data (35 frames)"
         >
           <Swords className="w-4 h-4 inline mr-1" /> Heavy (35f)
         </button>
@@ -1167,10 +1385,10 @@ export function HitboxVisualizer() {
       
       <div className="flex justify-center gap-4 mt-3">
         <span className="text-[#00b894] text-sm flex items-center gap-1">
-          <div className="w-3 h-3 border-2 border-[#00b894] border-dashed" /> Hurtbox
+          <div className="w-3 h-3 border-2 border-[#00b894] border-dashed" aria-hidden="true" /> Hurtbox
         </span>
         <span className="text-[#e17055] text-sm flex items-center gap-1">
-          <div className="w-3 h-3 border-2 border-[#e17055]" /> Hitbox
+          <div className="w-3 h-3 border-2 border-[#e17055]" aria-hidden="true" /> Hitbox
         </span>
       </div>
     </div>
@@ -1232,18 +1450,24 @@ export function InputBufferDemo() {
   }, []);
 
   return (
-    <div className="my-8 bg-[#1a1a24] rounded-xl p-6">
+    <div className="my-8 bg-[#1a1a24] rounded-xl p-6" role="region" aria-label="Input buffer demonstration">
       <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-        <Zap className="w-5 h-5 text-[#fdcb6e]" /> Input Buffer Demo
+        <Zap className="w-5 h-5 text-[#fdcb6e]" aria-hidden="true" /> Input Buffer Demo
       </h4>
       
-      <div className="flex items-center justify-center gap-2 mb-4 h-16">
+      {/* Screen reader status */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {combo ? `Combo executed: ${combo}!` : buffer.length > 0 ? `Buffer has ${buffer.length} inputs` : ''}
+      </div>
+      
+      <div className="flex items-center justify-center gap-2 mb-4 h-16" aria-label="Input buffer display">
         {buffer.map((b, i) => (
           <div
             key={i}
             className={`w-12 h-12 rounded-lg flex items-center justify-center font-bold text-xl animate-pulse ${
               b.key === 'z' ? 'bg-[#6c5ce7] text-white' : 'bg-[#e17055] text-white'
             }`}
+            aria-label={b.key === 'z' ? 'Light attack input' : 'Heavy attack input'}
           >
             {b.key.toUpperCase()}
           </div>
@@ -1254,21 +1478,21 @@ export function InputBufferDemo() {
       </div>
       
       {combo && (
-        <div className="text-center mb-4 animate-bounce">
+        <div className="text-center mb-4 animate-bounce" role="alert">
           <span className="text-2xl font-bold text-[#fdcb6e]">{combo}!</span>
         </div>
       )}
       
       <div className="bg-[#0a0a0f] rounded-lg p-4 mt-4">
         <h5 className="font-semibold text-white mb-2">Try these combos:</h5>
-        <ul className="text-sm text-[#a0a0b0] space-y-1">
+        <ul className="text-sm text-[#a0a0b0] space-y-1" aria-label="Available combos">
           {Object.entries(combos).map(([name, seq]) => (
             <li key={name} className="flex items-center gap-2">
               <span className="text-[#6c5ce7]">{name}:</span>
               {seq.map((k, i) => (
                 <span key={i} className={`px-2 py-0.5 rounded ${
                   k === 'z' ? 'bg-[#6c5ce7]/30 text-[#6c5ce7]' : 'bg-[#e17055]/30 text-[#e17055]'
-                }`}>
+                }`} aria-label={k === 'z' ? 'Z' : 'X'}>
                   {k.toUpperCase()}
                 </span>
               ))}

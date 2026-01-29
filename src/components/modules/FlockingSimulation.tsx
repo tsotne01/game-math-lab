@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Eye, EyeOff, Bird, Target, Navigation, Compass, Wind, Users, Crosshair, Circle, Square } from 'lucide-react';
+import { Play, Pause, RotateCcw, Eye, EyeOff, Bird, Navigation, Compass, Crosshair, Circle, Sparkles, Layers } from 'lucide-react';
 
 // ============== TYPES ==============
 interface Vec2 {
@@ -281,7 +281,19 @@ export function SeekDemo() {
         y: (e.clientY - rect.top) * (height / rect.height)
       };
     };
+    
+    const handleTouch = (e: TouchEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      targetRef.current = {
+        x: (touch.clientX - rect.left) * (width / rect.width),
+        y: (touch.clientY - rect.top) * (height / rect.height)
+      };
+    };
+    
     canvas.addEventListener('click', handleClick);
+    canvas.addEventListener('touchstart', handleTouch, { passive: false });
 
     const update = () => {
       if (!isRunning) {
@@ -398,6 +410,7 @@ export function SeekDemo() {
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
       canvas.removeEventListener('click', handleClick);
+      canvas.removeEventListener('touchstart', handleTouch);
     };
   }, [isRunning, showForces]);
 
@@ -475,7 +488,19 @@ export function FleeDemo() {
         y: (e.clientY - rect.top) * (height / rect.height)
       };
     };
+    
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      threatRef.current = {
+        x: (touch.clientX - rect.left) * (width / rect.width),
+        y: (touch.clientY - rect.top) * (height / rect.height)
+      };
+    };
+    
     canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     const update = () => {
       if (!isRunning) {
@@ -588,6 +613,7 @@ export function FleeDemo() {
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
       canvas.removeEventListener('mousemove', handleMove);
+      canvas.removeEventListener('touchmove', handleTouchMove);
     };
   }, [isRunning, showForces]);
 
@@ -664,7 +690,19 @@ export function ArriveDemo() {
         y: (e.clientY - rect.top) * (height / rect.height)
       };
     };
+    
+    const handleTouch = (e: TouchEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      targetRef.current = {
+        x: (touch.clientX - rect.left) * (width / rect.width),
+        y: (touch.clientY - rect.top) * (height / rect.height)
+      };
+    };
+    
     canvas.addEventListener('click', handleClick);
+    canvas.addEventListener('touchstart', handleTouch, { passive: false });
 
     const update = () => {
       if (!isRunning) {
@@ -766,6 +804,7 @@ export function ArriveDemo() {
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
       canvas.removeEventListener('click', handleClick);
+      canvas.removeEventListener('touchstart', handleTouch);
     };
   }, [isRunning, showRadius]);
 
@@ -1009,6 +1048,7 @@ export default function FlockingSimulation() {
   const [isRunning, setIsRunning] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
   const [showForces, setShowForces] = useState(false);
+  const [showTrails, setShowTrails] = useState(false);
   const [boidCount, setBoidCount] = useState(80);
   const [separationWeight, setSeparationWeight] = useState(1.5);
   const [alignmentWeight, setAlignmentWeight] = useState(1.0);
@@ -1017,6 +1057,7 @@ export default function FlockingSimulation() {
   
   const animRef = useRef<number>();
   const boidsRef = useRef<Boid[]>([]);
+  const trailsRef = useRef<Vec2[][]>([]);
   const mouseRef = useRef<Vec2>({ x: -1000, y: -1000 });
   const obstaclesRef = useRef<Obstacle[]>([
     { x: 250, y: 200, radius: 30 },
@@ -1040,7 +1081,29 @@ export default function FlockingSimulation() {
       ax: 0,
       ay: 0,
     }));
+    trailsRef.current = Array.from({ length: count }, () => []);
   }, []);
+  
+  // Preset configurations
+  const applyPreset = (preset: 'tight' | 'loose' | 'chaos') => {
+    switch (preset) {
+      case 'tight':
+        setSeparationWeight(1.0);
+        setAlignmentWeight(1.5);
+        setCohesionWeight(2.0);
+        break;
+      case 'loose':
+        setSeparationWeight(2.0);
+        setAlignmentWeight(0.5);
+        setCohesionWeight(0.5);
+        break;
+      case 'chaos':
+        setSeparationWeight(0.3);
+        setAlignmentWeight(0.1);
+        setCohesionWeight(0.1);
+        break;
+    }
+  };
 
   useEffect(() => {
     initBoids(boidCount);
@@ -1060,10 +1123,12 @@ export default function FlockingSimulation() {
           ax: 0,
           ay: 0,
         });
+        trailsRef.current.push([]);
       }
     } else if (boidCount < currentCount) {
       // Remove boids
       boidsRef.current = boidsRef.current.slice(0, boidCount);
+      trailsRef.current = trailsRef.current.slice(0, boidCount);
     }
   }, [boidCount]);
 
@@ -1102,7 +1167,8 @@ export default function FlockingSimulation() {
       const mouse = mouseRef.current;
 
       // Update each boid
-      for (const boid of boids) {
+      for (let i = 0; i < boids.length; i++) {
+        const boid = boids[i];
         // Calculate all steering forces
         const sep = scale(separation(boid, boids, perceptionRadius, maxSpeed, maxForce), separationWeight);
         const ali = scale(alignment(boid, boids, perceptionRadius, maxSpeed, maxForce), alignmentWeight);
@@ -1136,6 +1202,19 @@ export default function FlockingSimulation() {
         if (boid.x > width) boid.x = 0;
         if (boid.y < 0) boid.y = height;
         if (boid.y > height) boid.y = 0;
+        
+        // Record trail
+        if (showTrails && trailsRef.current[i]) {
+          trailsRef.current[i].push({ x: boid.x, y: boid.y });
+          if (trailsRef.current[i].length > 30) {
+            trailsRef.current[i].shift();
+          }
+        }
+      }
+      
+      // Clear trails when disabled
+      if (!showTrails) {
+        trailsRef.current = trailsRef.current.map(() => []);
       }
 
       draw(ctx);
@@ -1205,6 +1284,28 @@ export default function FlockingSimulation() {
         ctx.fill();
       }
 
+      // Draw trails
+      if (showTrails) {
+        const trails = trailsRef.current;
+        for (let i = 0; i < Math.min(boids.length, trails.length); i++) {
+          const trail = trails[i];
+          if (trail.length > 1) {
+            const boid = boids[i];
+            const speed = magnitude(vec2(boid.vx, boid.vy));
+            const hue = 260 - (speed / maxSpeed) * 80;
+            
+            ctx.beginPath();
+            ctx.moveTo(trail[0].x, trail[0].y);
+            for (let j = 1; j < trail.length; j++) {
+              ctx.lineTo(trail[j].x, trail[j].y);
+            }
+            ctx.strokeStyle = `hsla(${hue}, 70%, 60%, 0.3)`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        }
+      }
+      
       // Draw boids
       for (const boid of boids) {
         // Debug: perception radius
@@ -1283,7 +1384,7 @@ export default function FlockingSimulation() {
       canvas.removeEventListener('mousemove', handleMove);
       canvas.removeEventListener('mouseleave', handleLeave);
     };
-  }, [isRunning, showDebug, showForces, separationWeight, alignmentWeight, cohesionWeight, predatorEnabled]);
+  }, [isRunning, showDebug, showForces, showTrails, separationWeight, alignmentWeight, cohesionWeight, predatorEnabled]);
 
   const reset = () => {
     initBoids(boidCount);
@@ -1330,34 +1431,79 @@ export default function FlockingSimulation() {
           className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
             predatorEnabled ? 'bg-[#e17055] text-white' : 'bg-bg-secondary text-text-primary'
           }`}
+          aria-pressed={predatorEnabled}
+          aria-label="Toggle predator mode"
         >
           <Crosshair className="w-4 h-4" />
           Predator
         </button>
+        <button
+          onClick={() => setShowTrails(!showTrails)}
+          className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
+            showTrails ? 'bg-[#a29bfe] text-white' : 'bg-bg-secondary text-text-primary'
+          }`}
+          aria-pressed={showTrails}
+          aria-label="Toggle trail effect"
+        >
+          <Sparkles className="w-4 h-4" />
+          Trails
+        </button>
+      </div>
+      
+      {/* Presets */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-xs text-text-secondary flex items-center gap-1">
+          <Layers className="w-3 h-3" />
+          Presets:
+        </span>
+        <button
+          onClick={() => applyPreset('tight')}
+          className="px-3 py-1 text-xs bg-bg-secondary text-text-primary rounded-lg hover:bg-border transition-colors"
+          aria-label="Apply tight flock preset"
+        >
+          Tight Flock
+        </button>
+        <button
+          onClick={() => applyPreset('loose')}
+          className="px-3 py-1 text-xs bg-bg-secondary text-text-primary rounded-lg hover:bg-border transition-colors"
+          aria-label="Apply loose flock preset"
+        >
+          Loose Flock
+        </button>
+        <button
+          onClick={() => applyPreset('chaos')}
+          className="px-3 py-1 text-xs bg-bg-secondary text-text-primary rounded-lg hover:bg-border transition-colors"
+          aria-label="Apply chaos preset"
+        >
+          Chaos
+        </button>
       </div>
 
       {/* Sliders */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4" role="group" aria-label="Flocking behavior controls">
         <div>
-          <label className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+          <label htmlFor="boid-count" className="text-xs text-text-secondary flex items-center gap-1 mb-1">
             <Bird className="w-3 h-3" />
             Boids: {boidCount}
           </label>
           <input
+            id="boid-count"
             type="range"
             min="10"
             max="200"
             value={boidCount}
             onChange={(e) => setBoidCount(Number(e.target.value))}
             className="w-full accent-accent"
+            aria-label={`Boid count: ${boidCount}`}
           />
         </div>
         <div>
-          <label className="text-xs text-text-secondary flex items-center gap-1 mb-1">
-            <span className="w-3 h-3 rounded-full bg-[#e17055]" />
+          <label htmlFor="separation-weight" className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+            <span className="w-3 h-3 rounded-full bg-[#e17055]" aria-hidden="true" />
             Separation: {separationWeight.toFixed(1)}
           </label>
           <input
+            id="separation-weight"
             type="range"
             min="0"
             max="3"
@@ -1365,14 +1511,16 @@ export default function FlockingSimulation() {
             value={separationWeight}
             onChange={(e) => setSeparationWeight(Number(e.target.value))}
             className="w-full accent-[#e17055]"
+            aria-label={`Separation weight: ${separationWeight.toFixed(1)}`}
           />
         </div>
         <div>
-          <label className="text-xs text-text-secondary flex items-center gap-1 mb-1">
-            <span className="w-3 h-3 rounded-full bg-[#00b894]" />
+          <label htmlFor="alignment-weight" className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+            <span className="w-3 h-3 rounded-full bg-[#00b894]" aria-hidden="true" />
             Alignment: {alignmentWeight.toFixed(1)}
           </label>
           <input
+            id="alignment-weight"
             type="range"
             min="0"
             max="3"
@@ -1380,14 +1528,16 @@ export default function FlockingSimulation() {
             value={alignmentWeight}
             onChange={(e) => setAlignmentWeight(Number(e.target.value))}
             className="w-full accent-[#00b894]"
+            aria-label={`Alignment weight: ${alignmentWeight.toFixed(1)}`}
           />
         </div>
         <div>
-          <label className="text-xs text-text-secondary flex items-center gap-1 mb-1">
-            <span className="w-3 h-3 rounded-full bg-[#74b9ff]" />
+          <label htmlFor="cohesion-weight" className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+            <span className="w-3 h-3 rounded-full bg-[#74b9ff]" aria-hidden="true" />
             Cohesion: {cohesionWeight.toFixed(1)}
           </label>
           <input
+            id="cohesion-weight"
             type="range"
             min="0"
             max="3"
@@ -1395,6 +1545,7 @@ export default function FlockingSimulation() {
             value={cohesionWeight}
             onChange={(e) => setCohesionWeight(Number(e.target.value))}
             className="w-full accent-[#74b9ff]"
+            aria-label={`Cohesion weight: ${cohesionWeight.toFixed(1)}`}
           />
         </div>
       </div>
@@ -1405,6 +1556,8 @@ export default function FlockingSimulation() {
         width={width}
         height={height}
         className="w-full rounded-lg border border-border"
+        role="img"
+        aria-label="Flocking simulation canvas showing boids moving with steering behaviors"
       />
       
       {/* Legend */}
@@ -1426,15 +1579,21 @@ export default function FlockingSimulation() {
         {showForces && (
           <>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-[#e17055]" /> Separation
+              <span className="w-3 h-0.5 bg-[#e17055]" aria-hidden="true" /> Separation
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-[#00b894]" /> Alignment
+              <span className="w-3 h-0.5 bg-[#00b894]" aria-hidden="true" /> Alignment
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-[#74b9ff]" /> Cohesion
+              <span className="w-3 h-0.5 bg-[#74b9ff]" aria-hidden="true" /> Cohesion
             </span>
           </>
+        )}
+        {showTrails && (
+          <span className="flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-[#a29bfe]" />
+            Trails enabled
+          </span>
         )}
       </div>
     </div>
